@@ -118,6 +118,7 @@ a {
 .nav a {
   position: relative;
   transition: color 0.3s ease;
+  white-space: nowrap;
 }
 
 .nav a::after {
@@ -503,6 +504,10 @@ a {
   margin-bottom: 1rem;
 }
 
+.about-copy h3 {
+  margin-bottom: 0.8rem;
+}
+
 .about-copy p {
   color: var(--muted);
   line-height: 1.8;
@@ -669,10 +674,31 @@ a {
 }
 
 @media (max-width: 900px) {
-  .nav {
+
+  .nav-wrap {
     flex-wrap: nowrap;
-    gap: 0.7rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .nav-wrap::-webkit-scrollbar {
+    display: none;
+  }
+
+  .brand {
+    flex: 0 0 auto;
+  }
+
+  .nav {
+    flex: 1 1 auto;
+    min-width: max-content;
+    flex-wrap: nowrap;
+    gap: 0.6rem;
     font-size: 0.85rem;
+  }
+
+  .nav a {
+    white-space: nowrap;
   }
 
   .section-head {
@@ -707,18 +733,20 @@ a {
   .nav-wrap {
     flex-direction: row;
     align-items: center;
-    gap: 0.6rem;
+    justify-content: flex-start;
+    gap: 0.5rem;
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
   }
 
   .nav {
-    width: 100%;
+    flex: 1 1 auto;
+    min-width: max-content;
     flex-wrap: nowrap;
-    gap: 0.7rem;
+    gap: 0.5rem;
     white-space: nowrap;
-    justify-content: center;
+    justify-content: flex-start;
   }
 
   .nav-wrap::-webkit-scrollbar {
@@ -776,6 +804,14 @@ a {
 }
 
 @media (max-width: 520px) {
+  .nav {
+    gap: 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .brand {
+    font-size: 0.85rem;
+  }
   .logo-ring {
     width: 250px;
     height: 250px;
