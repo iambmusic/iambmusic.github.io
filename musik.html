@@ -1,0 +1,85 @@
+﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Musik | IAMB Synthmusic</title>
+  <meta name="description" content="Alle YouTube-Uploads von IAMB Synthmusic, automatisch aktualisiert mit Cover und Beschreibung.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Sora:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <canvas id="starfield" aria-hidden="true"></canvas>
+  <div class="space-glow" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a class="brand" href="index.html#home">IAMB</a>
+      <nav class="nav">
+        <a href="index.html#home">Start</a>
+        <a href="musik.html">Musik</a>
+        <a href="about.html">Über</a>
+      </nav>
+      <a class="btn small" href="https://www.youtube.com/@iamb-synthmusic7820" target="_blank" rel="noopener">YouTube Kanal</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="section">
+      <div class="container section-head stacked-head" data-animate>
+        <h1>Musik</h1>
+        <p>Die neuesten Uploads von YouTube werden automatisch geladen.</p>
+      </div>
+      <div class="container feed-status" id="youtube-status">Videos werden geladen.</div>
+      <div class="container release-grid" id="youtube-grid"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+      <div class="container footer-grid">
+        <div>
+          <p class="footer-brand">IAMB Synthmusic</p>
+          <p>Mehr Releases und Visuals auf allen Plattformen.</p>
+        </div>
+        <div class="footer-contact">
+          <h3>Kontaktiere mich</h3>
+          <a class="footer-email" href="mailto:iamb.synthmusic@gmail.com">iamb.synthmusic@gmail.com</a>
+        </div>
+        <div class="footer-platforms">
+          <h3>Andere Plattformen</h3>
+          <div class="contact-links">
+            <a href="https://www.youtube.com/@iamb-synthmusic7820" target="_blank" rel="noopener">
+              <img src="assets/icons/youtube.svg" alt="YouTube">YouTube
+            </a>
+            <a href="https://www.tiktok.com/@iamb.synthmusic" target="_blank" rel="noopener">
+              <img src="assets/icons/tiktok.svg" alt="TikTok">TikTok
+            </a>
+            <a href="https://www.instagram.com/iamb.synthmusic/" target="_blank" rel="noopener">
+              <img src="assets/icons/instagram.svg" alt="Instagram">Instagram
+            </a>
+            <a href="https://soundcloud.com/iamb-synthmusic" target="_blank" rel="noopener">
+              <img src="assets/icons/soundcloud.svg" alt="SoundCloud">SoundCloud
+            </a>
+            <a href="https://open.spotify.com/artist/31f8iEkHYOs73gZurN4waJ" target="_blank" rel="noopener">
+              <img src="assets/icons/spotify.svg" alt="Spotify">Spotify
+            </a>
+            <a href="https://music.apple.com/us/artist/iamb-synthmusic/1632680655" target="_blank" rel="noopener">
+              <img src="assets/icons/applemusic.svg" alt="Apple Music">Apple Music
+            </a>
+            <a href="https://www.amazon.com/music/player/artists/B0B5PN5NCJ/iamb-synthmusic" target="_blank" rel="noopener">
+              <img src="assets/icons/amazonmusic.svg" alt="Amazon Music">Amazon Music
+            </a>
+            <a href="https://www.traxsource.com/artist/675015/" target="_blank" rel="noopener">
+              <img src="assets/icons/traxsource.svg" alt="Traxsource">Traxsource
+            </a>
+          </div>
+        </div>
+      </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
