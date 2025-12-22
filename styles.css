@@ -875,7 +875,7 @@ a:focus-visible,
   .nav-wrap {
     flex-direction: row;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: space-between;
     gap: 0.5rem;
     flex-wrap: nowrap;
     overflow-x: auto;
