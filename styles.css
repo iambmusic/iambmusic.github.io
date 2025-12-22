@@ -563,6 +563,7 @@ a {
   position: relative;
   z-index: 3;
   margin-top: auto;
+  font-size: 0.9rem;
 }
 
 .footer-grid {
@@ -578,6 +579,12 @@ a {
   font-family: "Space Grotesk", sans-serif;
   color: var(--text);
   margin-bottom: 0.6rem;
+}
+
+.footer-legal {
+  margin-top: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--muted);
 }
 
 .footer-contact h3 {
@@ -615,6 +622,10 @@ a {
 
 .footer-contact .contact-links a {
   font-size: 0.9rem;
+}
+
+.site-footer .contact-links a {
+  font-weight: 400;
 }
 
 [data-animate] {
@@ -659,8 +670,8 @@ a {
 
 @media (max-width: 900px) {
   .nav {
-    flex-wrap: wrap;
-    gap: 0.8rem;
+    flex-wrap: nowrap;
+    gap: 0.7rem;
     font-size: 0.85rem;
   }
 
@@ -694,19 +705,35 @@ a {
   }
 
   .nav-wrap {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.7rem;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 
   .nav {
     width: 100%;
-    flex-wrap: wrap;
-    gap: 0.8rem 1.2rem;
+    flex-wrap: nowrap;
+    gap: 0.7rem;
+    white-space: nowrap;
+    justify-content: center;
+  }
+
+  .nav-wrap::-webkit-scrollbar {
+    display: none;
   }
 
   .btn.small {
-    align-self: flex-start;
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  .brand {
+    font-size: 0.9rem;
+    letter-spacing: 0.12em;
   }
 
   .hero {
