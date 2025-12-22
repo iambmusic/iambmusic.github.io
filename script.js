@@ -1,5 +1,6 @@
 ﻿const canvas = document.getElementById("starfield");
-const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const reduceMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+let reduceMotion = reduceMotionQuery.matches;
 const ctx = canvas ? canvas.getContext("2d") : null;
 const stars = [];
 let width = 0;
@@ -7,6 +8,9 @@ let height = 0;
 let dpr = 1;
 let pointerX = 0;
 let pointerY = 0;
+let animationFrameId = 0;
+let isAnimating = false;
+let resizeRaf = 0;
 
 function resizeCanvas() {
   if (!canvas || !ctx) return;
@@ -20,6 +24,7 @@ function resizeCanvas() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(dpr, dpr);
   buildStars();
+  drawStars(performance.now());
 }
 
 function buildStars() {
@@ -61,23 +66,66 @@ function drawStars(time) {
 }
 
 function animate(time) {
+  if (!isAnimating) return;
   drawStars(time);
-  requestAnimationFrame(animate);
+  animationFrameId = requestAnimationFrame(animate);
+}
+
+function startAnimation() {
+  if (!canvas || !ctx || isAnimating) return;
+  isAnimating = true;
+  animationFrameId = requestAnimationFrame(animate);
+}
+
+function stopAnimation() {
+  if (!isAnimating) return;
+  isAnimating = false;
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+    animationFrameId = 0;
+  }
+}
+
+function handleVisibilityChange() {
+  if (document.hidden) {
+    stopAnimation();
+    return;
+  }
+
+  startAnimation();
+}
+
+function handleReducedMotionChange(event) {
+  reduceMotion = event.matches;
+  if (document.hidden) return;
+  if (!isAnimating) startAnimation();
 }
 
 if (canvas && ctx) {
   window.addEventListener("resize", () => {
-    resizeCanvas();
+    if (resizeRaf) return;
+    resizeRaf = requestAnimationFrame(() => {
+      resizeRaf = 0;
+      resizeCanvas();
+    });
   });
 
   window.addEventListener("mousemove", (event) => {
     if (!width || !height) return;
     pointerX = (event.clientX / width - 0.5) * 0.6;
     pointerY = (event.clientY / height - 0.5) * 0.6;
-  });
+  }, { passive: true });
+
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+
+  if (typeof reduceMotionQuery.addEventListener === "function") {
+    reduceMotionQuery.addEventListener("change", handleReducedMotionChange);
+  } else if (typeof reduceMotionQuery.addListener === "function") {
+    reduceMotionQuery.addListener(handleReducedMotionChange);
+  }
 
   resizeCanvas();
-  requestAnimationFrame(animate);
+  handleVisibilityChange();
 }
 
 const observer = new IntersectionObserver(
@@ -106,6 +154,81 @@ function observeAnimatedElements(elements) {
 
 observeAnimatedElements(document.querySelectorAll("[data-animate]"));
 
+const navLinks = Array.from(document.querySelectorAll(".nav a"));
+
+function setActiveNavLink(match) {
+  if (!navLinks.length) return;
+  navLinks.forEach((link) => {
+    const href = link.getAttribute("href") || "";
+    const isActive = match ? href.includes(match) : false;
+    link.classList.toggle("is-active", isActive);
+  });
+}
+
+function updateActiveNav() {
+  if (!navLinks.length) return;
+  const pathName = window.location.pathname.split("/").pop() || "index.html";
+  const isIndex = pathName === "index.html" || pathName === "";
+
+  if (!isIndex) {
+    setActiveNavLink(pathName);
+    return;
+  }
+
+  const targets = [];
+  const home = document.getElementById("home");
+  const platforms = document.getElementById("plattformen");
+  if (home) targets.push(home);
+  if (platforms) targets.push(platforms);
+  if (!targets.length) return;
+
+  const offset = 140;
+  let current = targets[0];
+  let closestDistance = Number.POSITIVE_INFINITY;
+  targets.forEach((section) => {
+    const sectionTop = section.getBoundingClientRect().top;
+    const distance = Math.abs(sectionTop - offset);
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      current = section;
+    }
+  });
+
+  setActiveNavLink(`#${current.id}`);
+}
+
+function setupNavHighlight() {
+  let ticking = false;
+  const onScroll = () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      updateActiveNav();
+      ticking = false;
+    });
+  };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("resize", onScroll);
+  window.addEventListener("hashchange", () => {
+    const hash = window.location.hash;
+    if (hash) setActiveNavLink(hash);
+    requestAnimationFrame(updateActiveNav);
+  });
+  window.addEventListener("load", () => {
+    requestAnimationFrame(updateActiveNav);
+  });
+  updateActiveNav();
+  requestAnimationFrame(updateActiveNav);
+}
+
+setupNavHighlight();
+
+document.querySelectorAll(".contact-links a").forEach((link) => {
+  if (!link.getAttribute("aria-label")) {
+    link.setAttribute("aria-label", link.textContent.trim());
+  }
+});
+
 const YOUTUBE_CHANNEL_ID = "UCVV-a7quRaRVbh6bfrUVx4A";
 const YOUTUBE_FEED_URL = `https://www.youtube.com/feeds/videos.xml?channel_id=${YOUTUBE_CHANNEL_ID}`;
 const YOUTUBE_FEED_PROXY = `https://api.allorigins.win/raw?url=${encodeURIComponent(YOUTUBE_FEED_URL)}`;
@@ -115,6 +238,7 @@ const YOUTUBE_FEED_JINA = `https://r.jina.ai/http://www.youtube.com/feeds/videos
 const YOUTUBE_CACHE_KEY = "iamb_youtube_feed_cache_v1";
 const YOUTUBE_CACHE_TTL = 1000 * 60 * 60 * 6;
 const YOUTUBE_FETCH_TIMEOUT = 4500;
+let youtubeLoading = false;
 
 function normalizeText(text) {
   return (text || "").replace(/\s+/g, " ").trim();
@@ -272,10 +396,87 @@ function saveCachedFeed(feed) {
   }
 }
 
+
+function renderLatestSkeleton() {
+  const latestCard = document.getElementById("latest-video-card");
+  if (!latestCard) return;
+  latestCard.classList.add("is-loading");
+  latestCard.innerHTML = `
+    <div class="skeleton-block skeleton-cover"></div>
+    <div class="latest-video-body">
+      <div class="skeleton-block skeleton-title"></div>
+      <div class="skeleton-block skeleton-line"></div>
+      <div class="skeleton-block skeleton-line short"></div>
+      <div class="latest-video-actions">
+        <div class="skeleton-block skeleton-button"></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderGridSkeleton(count = 6) {
+  const grid = document.getElementById("youtube-grid");
+  const status = document.getElementById("youtube-status");
+  if (!grid) return;
+
+  grid.innerHTML = "";
+  const fragment = document.createDocumentFragment();
+  for (let i = 0; i < count; i += 1) {
+    const card = document.createElement("div");
+    card.className = "release-card is-loading";
+    card.innerHTML = `
+      <div class="skeleton-block release-cover"></div>
+      <div class="release-body">
+        <div class="skeleton-block skeleton-line"></div>
+        <div class="skeleton-block skeleton-line short"></div>
+      </div>
+    `;
+    fragment.appendChild(card);
+  }
+  grid.appendChild(fragment);
+
+  if (status) {
+    status.textContent = "Videos werden geladen.";
+  }
+}
+
+function attachRetry(container) {
+  const button = container.querySelector(".js-retry");
+  if (!button) return;
+  button.addEventListener("click", () => {
+    loadYouTubeContent({ forceRefresh: true });
+  });
+}
+
+function renderFeedError(message) {
+  const latestCard = document.getElementById("latest-video-card");
+  const status = document.getElementById("youtube-status");
+
+  if (latestCard) {
+    latestCard.classList.remove("is-loading");
+    latestCard.innerHTML = `
+      <div class="feed-error">
+        <p class="feed-status">${message}</p>
+        <button class="btn ghost js-retry" type="button">Erneut versuchen</button>
+      </div>
+    `;
+    attachRetry(latestCard);
+  }
+
+  if (status) {
+    status.innerHTML = `
+      <span>${message}</span>
+      <button class="btn ghost js-retry" type="button">Erneut versuchen</button>
+    `;
+    attachRetry(status);
+  }
+}
+
 function renderLatestVideo(video) {
   const latestCard = document.getElementById("latest-video-card");
   if (!latestCard || !video) return;
 
+  latestCard.classList.remove("is-loading");
   latestCard.innerHTML = "";
 
   const cover = document.createElement("img");
@@ -359,18 +560,22 @@ function renderVideoGrid(videos) {
   }
 }
 
-async function loadYouTubeContent() {
+async function loadYouTubeContent({ forceRefresh = false } = {}) {
+  if (youtubeLoading) return;
+  youtubeLoading = true;
   const latestCard = document.getElementById("latest-video-card");
   const grid = document.getElementById("youtube-grid");
   const status = document.getElementById("youtube-status");
 
   if (!latestCard && !grid) {
+    youtubeLoading = false;
     return;
   }
 
-  const cachedFeed = loadCachedFeed();
+  const cachedFeed = forceRefresh ? null : loadCachedFeed();
+  let cachedVideos = [];
   if (cachedFeed) {
-    const cachedVideos =
+    cachedVideos =
       cachedFeed.format === "jina"
         ? parseYouTubeFeedFromJina(cachedFeed.text)
         : parseYouTubeFeed(cachedFeed.text);
@@ -380,16 +585,17 @@ async function loadYouTubeContent() {
     }
   }
 
+  if (!cachedVideos.length) {
+    renderLatestSkeleton();
+    renderGridSkeleton();
+  }
+
   const feed = await fetchYouTubeFeed();
   if (!feed) {
-    if (!cachedFeed) {
-      if (latestCard) {
-        latestCard.innerHTML = "<p class=\"feed-status\">Video konnte nicht geladen werden.</p>";
-      }
-      if (status) {
-        status.textContent = "Videos konnten nicht geladen werden.";
-      }
+    if (!cachedVideos.length) {
+      renderFeedError("Videos konnten nicht geladen werden.");
     }
+    youtubeLoading = false;
     return;
   }
 
@@ -400,19 +606,16 @@ async function loadYouTubeContent() {
       ? parseYouTubeFeedFromJina(feed.text)
       : parseYouTubeFeed(feed.text);
   if (!videos.length) {
-    if (!cachedFeed) {
-      if (latestCard) {
-        latestCard.innerHTML = "<p class=\"feed-status\">Noch keine Videos verfügbar.</p>";
-      }
-      if (status) {
-        status.textContent = "Noch keine Videos verfügbar.";
-      }
+    if (!cachedVideos.length) {
+      renderFeedError("Noch keine Videos verfügbar.");
     }
+    youtubeLoading = false;
     return;
   }
 
   renderLatestVideo(videos[0]);
   renderVideoGrid(videos);
+  youtubeLoading = false;
 }
 
 loadYouTubeContent();
