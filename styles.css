@@ -147,6 +147,49 @@ a {
   padding: 5.5rem 0;
 }
 
+.section .container {
+  position: relative;
+  z-index: 2;
+}
+
+.glow-anchor {
+  position: relative;
+}
+
+.glow-anchor > :not(.section-glow) {
+  position: relative;
+  z-index: 1;
+}
+
+.glow-anchor .section-glow {
+  z-index: 0;
+}
+
+.section-glow {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(18px);
+  opacity: 0.45;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.glow-yellow {
+  background: radial-gradient(circle, rgba(244, 178, 60, 0.35), transparent 70%);
+}
+
+
+
+
+
+.glow-about-yellow {
+  width: 110%;
+  height: 110%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
 .hero {
   padding-top: 6.5rem;
 }
@@ -726,6 +769,11 @@ a {
 }
 
 @media (max-width: 700px) {
+  .section-glow {
+    opacity: 0.35;
+    filter: blur(14px);
+  }
+
   .container {
     width: min(100% - 1.5rem, var(--max-width));
   }
