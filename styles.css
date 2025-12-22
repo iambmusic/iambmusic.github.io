@@ -126,6 +126,7 @@ a:focus-visible,
   gap: 1.5rem;
   font-size: 0.95rem;
   color: var(--muted);
+  margin-left: auto;
 }
 
 .nav a {
@@ -198,10 +199,6 @@ a:focus-visible,
 .glow-yellow {
   background: radial-gradient(circle, rgba(244, 178, 60, 0.35), transparent 70%);
 }
-
-
-
-
 
 .glow-about-yellow {
   width: 110%;
