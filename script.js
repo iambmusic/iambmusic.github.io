@@ -54,12 +54,11 @@ function drawStars(time) {
   ctx.clearRect(0, 0, width, height);
   const motionScale = reduceMotion ? 0.25 : coarsePointer ? 0.4 : 1;
   const twinkleScale = reduceMotion ? 0.6 : 1;
-  const scrollDamp = isScrolling ? 0 : 1;
 
   for (const star of stars) {
     const driftX = pointerX * star.speed * 14 * motionScale;
     const driftY = pointerY * star.speed * 14 * motionScale;
-    star.y += star.speed * motionScale * delta * scrollDamp;
+    star.y += star.speed * motionScale * delta;
 
     if (star.y > height + 2) {
       star.y = -2;
@@ -116,11 +115,14 @@ function handleCoarsePointerChange(event) {
 }
 
 function handleScroll() {
-  isScrolling = true;
+  if (!isScrolling) {
+    isScrolling = true;
+    stopAnimation();
+  }
   if (scrollTimeout) clearTimeout(scrollTimeout);
   scrollTimeout = setTimeout(() => {
     isScrolling = false;
-    lastTime = 0;
+    if (!document.hidden) startAnimation();
   }, 140);
 }
 
