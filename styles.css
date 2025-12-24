@@ -825,7 +825,7 @@ a:focus-visible,
 
   .nav-wrap {
     flex-wrap: nowrap;
-    overflow-x: auto;
+    overflow: hidden;
     scrollbar-width: none;
   }
 
@@ -838,12 +838,20 @@ a:focus-visible,
   }
 
   .nav {
-    flex: 0 0 auto;
-    min-width: max-content;
+    flex: 1 1 auto;
+    min-width: 0;
     flex-wrap: nowrap;
     gap: 0.6rem;
     font-size: 0.85rem;
     justify-content: flex-end;
+    margin-left: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
   }
 
   .nav a {
@@ -890,17 +898,25 @@ a:focus-visible,
     justify-content: space-between;
     gap: 0.5rem;
     flex-wrap: nowrap;
-    overflow-x: auto;
+    overflow: hidden;
     scrollbar-width: none;
   }
 
   .nav {
-    flex: 0 0 auto;
-    min-width: max-content;
+    flex: 1 1 auto;
+    min-width: 0;
     flex-wrap: nowrap;
     gap: 0.5rem;
     white-space: nowrap;
     justify-content: flex-end;
+    margin-left: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
   }
 
   .nav-wrap::-webkit-scrollbar {
