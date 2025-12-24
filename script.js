@@ -8,8 +8,7 @@ const stars = [];
 let width = 0;
 let height = 0;
 let dpr = 1;
-let prevWidth = 0;
-let prevHeight = 0;
+let pendingResize = false;
 let pointerX = 0;
 let pointerY = 0;
 let animationFrameId = 0;
@@ -19,29 +18,38 @@ let lastTime = 0;
 let scrollTimeout = 0;
 let isScrolling = false;
 
+function getViewportSize() {
+  if (window.visualViewport) {
+    return {
+      width: Math.round(window.visualViewport.width),
+      height: Math.round(window.visualViewport.height)
+    };
+  }
+  return { width: window.innerWidth, height: window.innerHeight };
+}
+
 function resizeCanvas() {
   if (!canvas || !ctx) return;
+  if (isScrolling) {
+    pendingResize = true;
+    return;
+  }
   dpr = window.devicePixelRatio || 1;
-  const nextWidth = window.innerWidth;
-  const nextHeight = window.innerHeight;
+  const { width: nextWidth, height: nextHeight } = getViewportSize();
+  if (!nextWidth || !nextHeight) return;
+  if (nextWidth === width && nextHeight === height) return;
   canvas.width = Math.floor(nextWidth * dpr);
   canvas.height = Math.floor(nextHeight * dpr);
   canvas.style.width = `${nextWidth}px`;
   canvas.style.height = `${nextHeight}px`;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(dpr, dpr);
-  if (!prevWidth || !prevHeight || !stars.length) {
-    width = nextWidth;
-    height = nextHeight;
+  width = nextWidth;
+  height = nextHeight;
+  if (!stars.length) {
     buildStars();
   } else {
-    const scaleX = nextWidth / prevWidth;
-    const scaleY = nextHeight / prevHeight;
-    width = nextWidth;
-    height = nextHeight;
     stars.forEach((star) => {
-      star.x *= scaleX;
-      star.y *= scaleY;
       if (star.x < 0) star.x = 0;
       if (star.x > width) star.x = width;
       if (star.y < 0) star.y = 0;
@@ -54,8 +62,6 @@ function resizeCanvas() {
       stars.length = targetCount;
     }
   }
-  prevWidth = width;
-  prevHeight = height;
   lastTime = 0;
   drawStars(performance.now());
 }
@@ -152,18 +158,27 @@ function handleScroll() {
   if (scrollTimeout) clearTimeout(scrollTimeout);
   scrollTimeout = setTimeout(() => {
     isScrolling = false;
+    if (pendingResize) {
+      pendingResize = false;
+      resizeCanvas();
+    }
     if (!document.hidden) startAnimation();
   }, 140);
 }
 
-if (canvas && ctx) {
-  window.addEventListener("resize", () => {
-    if (resizeRaf) return;
-    resizeRaf = requestAnimationFrame(() => {
-      resizeRaf = 0;
-      resizeCanvas();
-    });
+function scheduleResize() {
+  if (resizeRaf) return;
+  resizeRaf = requestAnimationFrame(() => {
+    resizeRaf = 0;
+    resizeCanvas();
   });
+}
+
+if (canvas && ctx) {
+  window.addEventListener("resize", scheduleResize);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", scheduleResize);
+  }
 
   window.addEventListener("mousemove", (event) => {
     if (!width || !height) return;
