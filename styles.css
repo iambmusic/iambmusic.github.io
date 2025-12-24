@@ -169,6 +169,10 @@ a:focus-visible,
   padding: 5.5rem 0;
 }
 
+.section:first-of-type {
+  padding-top: 3.5rem;
+}
+
 .section .container {
   position: relative;
   z-index: 2;
@@ -209,7 +213,7 @@ a:focus-visible,
 }
 
 .hero {
-  padding-top: 6.5rem;
+  padding-top: 4.2rem;
 }
 
 .hero-grid {
@@ -935,7 +939,7 @@ a:focus-visible,
   }
 
   .hero {
-    padding-top: 5rem;
+    padding-top: 3.4rem;
   }
 
   .logo-ring {
@@ -962,6 +966,10 @@ a:focus-visible,
 
   .section {
     padding: 4.5rem 0;
+  }
+
+  .section:first-of-type {
+    padding-top: 2.8rem;
   }
 
   .latest-video-card {
