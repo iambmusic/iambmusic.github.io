@@ -1,6 +1,8 @@
 ﻿const canvas = document.getElementById("starfield");
 const reduceMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+const coarsePointerQuery = window.matchMedia("(pointer: coarse)");
 let reduceMotion = reduceMotionQuery.matches;
+let coarsePointer = coarsePointerQuery.matches;
 const ctx = canvas ? canvas.getContext("2d") : null;
 const stars = [];
 let width = 0;
@@ -11,6 +13,7 @@ let pointerY = 0;
 let animationFrameId = 0;
 let isAnimating = false;
 let resizeRaf = 0;
+let lastTime = 0;
 
 function resizeCanvas() {
   if (!canvas || !ctx) return;
@@ -24,6 +27,7 @@ function resizeCanvas() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(dpr, dpr);
   buildStars();
+  lastTime = 0;
   drawStars(performance.now());
 }
 
@@ -43,14 +47,16 @@ function buildStars() {
 
 function drawStars(time) {
   if (!canvas || !ctx) return;
+  const delta = lastTime ? Math.min((time - lastTime) / 16.67, 3) : 1;
+  lastTime = time;
   ctx.clearRect(0, 0, width, height);
-  const motionScale = reduceMotion ? 0.25 : 1;
+  const motionScale = reduceMotion ? 0.25 : coarsePointer ? 0.55 : 1;
   const twinkleScale = reduceMotion ? 0.6 : 1;
 
   for (const star of stars) {
     const driftX = pointerX * star.speed * 14 * motionScale;
     const driftY = pointerY * star.speed * 14 * motionScale;
-    star.y += star.speed * motionScale;
+    star.y += star.speed * motionScale * delta;
 
     if (star.y > height + 2) {
       star.y = -2;
@@ -74,6 +80,7 @@ function animate(time) {
 function startAnimation() {
   if (!canvas || !ctx || isAnimating) return;
   isAnimating = true;
+  lastTime = 0;
   animationFrameId = requestAnimationFrame(animate);
 }
 
@@ -101,6 +108,10 @@ function handleReducedMotionChange(event) {
   if (!isAnimating) startAnimation();
 }
 
+function handleCoarsePointerChange(event) {
+  coarsePointer = event.matches;
+}
+
 if (canvas && ctx) {
   window.addEventListener("resize", () => {
     if (resizeRaf) return;
@@ -122,6 +133,12 @@ if (canvas && ctx) {
     reduceMotionQuery.addEventListener("change", handleReducedMotionChange);
   } else if (typeof reduceMotionQuery.addListener === "function") {
     reduceMotionQuery.addListener(handleReducedMotionChange);
+  }
+
+  if (typeof coarsePointerQuery.addEventListener === "function") {
+    coarsePointerQuery.addEventListener("change", handleCoarsePointerChange);
+  } else if (typeof coarsePointerQuery.addListener === "function") {
+    coarsePointerQuery.addListener(handleCoarsePointerChange);
   }
 
   resizeCanvas();
