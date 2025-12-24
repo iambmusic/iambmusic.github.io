@@ -294,6 +294,10 @@ a:focus-visible,
   color: #121212;
 }
 
+.btn-cta-pulse {
+  animation: cta-pulse 2.6s ease-in-out infinite;
+}
+
 .btn.ghost {
   border-color: rgba(255, 255, 255, 0.3);
   color: var(--text);
@@ -596,6 +600,7 @@ a:focus-visible,
   justify-content: center;
 }
 
+
 .about-media img {
   width: min(100%, 280px);
   border-radius: 20px;
@@ -695,6 +700,7 @@ a:focus-visible,
 .artist-card span {
   font-weight: 600;
 }
+
 
 
 .site-footer {
@@ -803,6 +809,11 @@ a:focus-visible,
 @keyframes ring-spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+@keyframes cta-pulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(244, 178, 60, 0); }
+  50% { box-shadow: 0 0 26px rgba(244, 178, 60, 0.35); }
 }
 
 @keyframes glow-drift {
@@ -976,6 +987,7 @@ a:focus-visible,
   .footer-contact .contact-links {
     grid-template-columns: 1fr;
   }
+
 }
 
 @media (prefers-reduced-motion: reduce) {
