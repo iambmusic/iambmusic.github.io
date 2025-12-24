@@ -8,6 +8,8 @@ const stars = [];
 let width = 0;
 let height = 0;
 let dpr = 1;
+let prevWidth = 0;
+let prevHeight = 0;
 let pointerX = 0;
 let pointerY = 0;
 let animationFrameId = 0;
@@ -20,22 +22,45 @@ let isScrolling = false;
 function resizeCanvas() {
   if (!canvas || !ctx) return;
   dpr = window.devicePixelRatio || 1;
-  width = window.innerWidth;
-  height = window.innerHeight;
-  canvas.width = Math.floor(width * dpr);
-  canvas.height = Math.floor(height * dpr);
-  canvas.style.width = `${width}px`;
-  canvas.style.height = `${height}px`;
+  const nextWidth = window.innerWidth;
+  const nextHeight = window.innerHeight;
+  canvas.width = Math.floor(nextWidth * dpr);
+  canvas.height = Math.floor(nextHeight * dpr);
+  canvas.style.width = `${nextWidth}px`;
+  canvas.style.height = `${nextHeight}px`;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.scale(dpr, dpr);
-  buildStars();
+  if (!prevWidth || !prevHeight || !stars.length) {
+    width = nextWidth;
+    height = nextHeight;
+    buildStars();
+  } else {
+    const scaleX = nextWidth / prevWidth;
+    const scaleY = nextHeight / prevHeight;
+    width = nextWidth;
+    height = nextHeight;
+    stars.forEach((star) => {
+      star.x *= scaleX;
+      star.y *= scaleY;
+      if (star.x < 0) star.x = 0;
+      if (star.x > width) star.x = width;
+      if (star.y < 0) star.y = 0;
+      if (star.y > height) star.y = height;
+    });
+    const targetCount = Math.floor((width * height) / 4800);
+    if (targetCount > stars.length) {
+      appendStars(targetCount - stars.length);
+    } else if (targetCount < stars.length) {
+      stars.length = targetCount;
+    }
+  }
+  prevWidth = width;
+  prevHeight = height;
   lastTime = 0;
   drawStars(performance.now());
 }
 
-function buildStars() {
-  stars.length = 0;
-  const count = Math.floor((width * height) / 4800);
+function appendStars(count) {
   for (let i = 0; i < count; i += 1) {
     stars.push({
       x: Math.random() * width,
@@ -45,6 +70,11 @@ function buildStars() {
       twinkle: Math.random() * Math.PI * 2
     });
   }
+}
+
+function buildStars() {
+  stars.length = 0;
+  appendStars(Math.floor((width * height) / 4800));
 }
 
 function drawStars(time) {
