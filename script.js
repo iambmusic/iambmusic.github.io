@@ -14,6 +14,8 @@ let animationFrameId = 0;
 let isAnimating = false;
 let resizeRaf = 0;
 let lastTime = 0;
+let scrollTimeout = 0;
+let isScrolling = false;
 
 function resizeCanvas() {
   if (!canvas || !ctx) return;
@@ -47,16 +49,17 @@ function buildStars() {
 
 function drawStars(time) {
   if (!canvas || !ctx) return;
-  const delta = lastTime ? Math.min((time - lastTime) / 16.67, 3) : 1;
+  const delta = lastTime ? Math.min((time - lastTime) / 16.67, 2) : 1;
   lastTime = time;
   ctx.clearRect(0, 0, width, height);
-  const motionScale = reduceMotion ? 0.25 : coarsePointer ? 0.55 : 1;
+  const motionScale = reduceMotion ? 0.25 : coarsePointer ? 0.4 : 1;
   const twinkleScale = reduceMotion ? 0.6 : 1;
+  const scrollDamp = isScrolling ? 0 : 1;
 
   for (const star of stars) {
     const driftX = pointerX * star.speed * 14 * motionScale;
     const driftY = pointerY * star.speed * 14 * motionScale;
-    star.y += star.speed * motionScale * delta;
+    star.y += star.speed * motionScale * delta * scrollDamp;
 
     if (star.y > height + 2) {
       star.y = -2;
@@ -112,6 +115,15 @@ function handleCoarsePointerChange(event) {
   coarsePointer = event.matches;
 }
 
+function handleScroll() {
+  isScrolling = true;
+  if (scrollTimeout) clearTimeout(scrollTimeout);
+  scrollTimeout = setTimeout(() => {
+    isScrolling = false;
+    lastTime = 0;
+  }, 140);
+}
+
 if (canvas && ctx) {
   window.addEventListener("resize", () => {
     if (resizeRaf) return;
@@ -126,6 +138,8 @@ if (canvas && ctx) {
     pointerX = (event.clientX / width - 0.5) * 0.6;
     pointerY = (event.clientY / height - 0.5) * 0.6;
   }, { passive: true });
+
+  window.addEventListener("scroll", handleScroll, { passive: true });
 
   document.addEventListener("visibilitychange", handleVisibilityChange);
 
