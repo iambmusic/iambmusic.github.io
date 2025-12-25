@@ -42,7 +42,13 @@ def download_image(url, dest_path):
                     handle.write(chunk)
         return True
     except requests.RequestException:
-        return False
+    return False
+
+
+def truncate_text(text, max_length):
+    if len(text) <= max_length:
+        return text
+    return text[:max_length].rstrip() + "..."
 
 
 def fetch_instagram_items():
@@ -85,12 +91,20 @@ def fetch_instagram_items():
                 local_path.unlink(missing_ok=True)
         if not local_path.exists():
             continue
+        caption_edges = node.get("edge_media_to_caption", {}).get("edges", [])
+        caption_text = (
+            caption_edges[0].get("node", {}).get("text", "") if caption_edges else ""
+        )
+        caption_text = " ".join(caption_text.split())
+        title_text = truncate_text(caption_text, 60) if caption_text else "Instagram Post"
         published = node.get("taken_at_timestamp", 0)
         items.append(
             {
                 "source": "instagram",
                 "url": url,
                 "thumbnail": thumbnail,
+                "title": title_text,
+                "description": caption_text,
                 "published": published * 1000 if published else 0,
             }
         )
