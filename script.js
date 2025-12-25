@@ -307,6 +307,22 @@ document.querySelectorAll(".contact-links a").forEach((link) => {
   }
 });
 
+const SOCIAL_FEED_PATH = "assets/social-feed.json";
+const SOURCE_ICON_MAP = {
+  youtube: "assets/icons/youtube.svg",
+  instagram: "assets/icons/instagram.svg"
+};
+const SOURCE_LABELS = {
+  youtube: "YouTube",
+  instagram: "Instagram"
+};
+const INSTAGRAM_USERNAME = "iamb.synthmusic";
+const INSTAGRAM_PROFILE_URL =
+  `https://www.instagram.com/api/v1/users/web_profile_info/?username=${INSTAGRAM_USERNAME}`;
+const INSTAGRAM_PROFILE_PROXY = `https://corsproxy.io/?${encodeURIComponent(INSTAGRAM_PROFILE_URL)}`;
+const INSTAGRAM_CACHE_KEY = "iamb_instagram_feed_cache_v1";
+const INSTAGRAM_CACHE_TTL = 1000 * 60 * 60 * 6;
+
 const YOUTUBE_CHANNEL_ID = "UCVV-a7quRaRVbh6bfrUVx4A";
 const YOUTUBE_FEED_URL = `https://www.youtube.com/feeds/videos.xml?channel_id=${YOUTUBE_CHANNEL_ID}`;
 const YOUTUBE_FEED_PROXY = `https://api.allorigins.win/raw?url=${encodeURIComponent(YOUTUBE_FEED_URL)}`;
@@ -322,9 +338,12 @@ function normalizeText(text) {
   return (text || "").replace(/\s+/g, " ").trim();
 }
 
-function formatVideoTitle(title) {
+function formatVideoTitle(title, source) {
   const cleaned = normalizeText(title);
-  return cleaned.replace(/^iamb\s*synthmusic\s*[-–—:]\s*/i, "");
+  if (source === "youtube") {
+    return cleaned.replace(/^iamb\s*synthmusic\s*[---:]\s*/i, "");
+  }
+  return cleaned;
 }
 
 function truncateText(text, maxLength) {
@@ -332,6 +351,240 @@ function truncateText(text, maxLength) {
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength).trim()}...`;
 }
+
+function parseTimestamp(value) {
+  if (!value) return 0;
+  if (typeof value === "number") {
+    return value < 10000000000 ? value * 1000 : value;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function normalizeSocialItem(item, sourceFallback) {
+  if (!item) return null;
+  const url = item.url || item.link;
+  const thumbnail = item.thumbnail || item.image;
+  const source = (item.source || sourceFallback || "").toLowerCase();
+  if (!url || !thumbnail) return null;
+  const title = normalizeText(item.title || item.caption || "");
+  const description = normalizeText(item.description || item.caption || "");
+  const published = parseTimestamp(item.published || item.timestamp);
+  return {
+    title,
+    description,
+    url,
+    thumbnail,
+    source,
+    published
+  };
+}
+
+function mergeMediaItems(...lists) {
+  const seen = new Set();
+  const items = [];
+  lists.flat().forEach((item) => {
+    if (!item || !item.url) return;
+    if (seen.has(item.url)) return;
+    seen.add(item.url);
+    items.push(item);
+  });
+  return items.sort((a, b) => (b.published || 0) - (a.published || 0));
+}
+
+function loadCachedInstagramFeed() {
+  try {
+    const cached = localStorage.getItem(INSTAGRAM_CACHE_KEY);
+    if (!cached) return null;
+    const data = JSON.parse(cached);
+    if (!data || !Array.isArray(data.items)) return null;
+    if (Date.now() - data.timestamp > INSTAGRAM_CACHE_TTL) return null;
+    return data.items;
+  } catch (error) {
+    return null;
+  }
+}
+
+function saveCachedInstagramFeed(items) {
+  try {
+    localStorage.setItem(
+      INSTAGRAM_CACHE_KEY,
+      JSON.stringify({ items, timestamp: Date.now() })
+    );
+  } catch (error) {
+    // Ignore cache errors
+  }
+}
+
+function parseInstagramFeed(data) {
+  const edges = data?.data?.user?.edge_owner_to_timeline_media?.edges;
+  if (!Array.isArray(edges)) return [];
+
+  return edges
+    .map((edge) => {
+      const node = edge?.node;
+      if (!node) return null;
+      const shortcode = node.shortcode;
+      const url = shortcode ? `https://www.instagram.com/p/${shortcode}/` : null;
+      const fallbackThumb = shortcode
+        ? `https://www.instagram.com/p/${shortcode}/media/?size=l`
+        : null;
+      const thumbnail = fallbackThumb || node.thumbnail_src || node.display_url;
+      if (!url || !thumbnail) return null;
+      const captionEdge = node.edge_media_to_caption?.edges?.[0]?.node;
+      const caption = captionEdge?.text || "";
+      const normalizedCaption = normalizeText(caption);
+      const title = normalizedCaption
+        ? truncateText(normalizedCaption, 60)
+        : "Instagram Post";
+      return {
+        title,
+        description: normalizedCaption,
+        url,
+        thumbnail,
+        source: "instagram",
+        published: parseTimestamp(node.taken_at_timestamp)
+      };
+    })
+    .filter(Boolean);
+}
+
+async function fetchInstagramFeed() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), YOUTUBE_FETCH_TIMEOUT);
+  try {
+    const response = await fetch(INSTAGRAM_PROFILE_PROXY, { signal: controller.signal });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const items = parseInstagramFeed(data);
+    if (items.length) {
+      saveCachedInstagramFeed(items);
+    }
+    return items;
+  } catch (error) {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchTextFromSources(sources) {
+  const tryFetch = async (url) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), YOUTUBE_FETCH_TIMEOUT);
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) return null;
+      const text = await response.text();
+      return text || null;
+    } catch (error) {
+      return null;
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  if (typeof Promise.any === "function") {
+    const tasks = sources.map((url) =>
+      tryFetch(url).then((result) => {
+        if (!result) throw new Error("empty");
+        return result;
+      })
+    );
+    try {
+      return await Promise.any(tasks);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  for (const url of sources) {
+    const result = await tryFetch(url);
+    if (result) return result;
+  }
+
+  return null;
+}
+
+function getInstagramOembedSources(postUrl) {
+  const embedUrl = `https://www.instagram.com/oembed/?url=${encodeURIComponent(postUrl)}`;
+  return [
+    `https://corsproxy.io/?${encodeURIComponent(embedUrl)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(embedUrl)}`,
+    embedUrl
+  ];
+}
+
+async function fetchInstagramOembed(postUrl) {
+  const text = await fetchTextFromSources(getInstagramOembedSources(postUrl));
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    return null;
+  }
+}
+
+async function hydrateInstagramItems(items) {
+  if (!items.length) return items;
+  const hydrated = await Promise.all(
+    items.map(async (item) => {
+      if (item.source !== "instagram") return item;
+      if (item.thumbnail) {
+        return item;
+      }
+      const data = await fetchInstagramOembed(item.url);
+      if (!data) return item;
+      return {
+        ...item,
+        title: item.title || normalizeText(data.title || ""),
+        thumbnail: data.thumbnail_url || item.thumbnail || ""
+      };
+    })
+  );
+  return hydrated.filter((item) => item.thumbnail);
+}
+
+function parseLocalSocialFeed(data) {
+  if (!data) return [];
+  const items = [];
+
+  if (Array.isArray(data)) {
+    data.forEach((item) => {
+      const normalized = normalizeSocialItem(item);
+      if (normalized) items.push(normalized);
+    });
+    return items;
+  }
+
+  if (Array.isArray(data.items)) {
+    data.items.forEach((item) => {
+      const normalized = normalizeSocialItem(item);
+      if (normalized) items.push(normalized);
+    });
+  }
+
+  if (Array.isArray(data.instagram)) {
+    data.instagram.forEach((item) => {
+      const normalized = normalizeSocialItem(item, "instagram");
+      if (normalized) items.push(normalized);
+    });
+  }
+
+  return items;
+}
+
+async function fetchLocalSocialFeed() {
+  try {
+    const response = await fetch(SOCIAL_FEED_PATH, { cache: "no-store" });
+    if (!response.ok) return [];
+    const data = await response.json();
+    return parseLocalSocialFeed(data);
+  } catch (error) {
+    return [];
+  }
+}
+
 
 async function fetchYouTubeFeed() {
   const sources = [
@@ -408,12 +661,18 @@ function parseYouTubeFeed(xmlText) {
       : videoId
         ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
         : "";
+    const publishedNode =
+      entry.getElementsByTagName("published")[0] || entry.getElementsByTagName("updated")[0];
+    const publishedValue = publishedNode ? Date.parse(publishedNode.textContent) : 0;
+    const published = Number.isNaN(publishedValue) ? 0 : publishedValue;
 
     return {
       title,
       url: url || (videoId ? `https://www.youtube.com/watch?v=${videoId}` : "#"),
       description,
-      thumbnail
+      thumbnail,
+      source: "youtube",
+      published
     };
   });
 
@@ -441,7 +700,9 @@ function parseYouTubeFeedFromJina(text) {
         title,
         url: `https://www.youtube.com/watch?v=${videoId}`,
         description: "",
-        thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+        thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        source: "youtube",
+        published: 0
       });
     }
     match = pattern.exec(text);
@@ -560,14 +821,15 @@ function renderLatestVideo(video) {
   const cover = document.createElement("img");
   cover.className = "latest-video-cover";
   cover.src = video.thumbnail;
-  cover.alt = `${video.title} Cover`;
   cover.loading = "lazy";
 
   const body = document.createElement("div");
   body.className = "latest-video-body";
 
   const heading = document.createElement("h3");
-  heading.textContent = formatVideoTitle(video.title);
+  const displayTitle = formatVideoTitle(video.title, video.source) || video.title;
+  heading.textContent = displayTitle;
+  cover.alt = `${displayTitle} Cover`;
 
   const desc = document.createElement("p");
   const descText = video.description || "Keine Beschreibung verfügbar.";
@@ -610,22 +872,41 @@ function renderVideoGrid(videos) {
     const cover = document.createElement("img");
     cover.className = "release-cover";
     cover.src = video.thumbnail;
-    cover.alt = `${video.title} Cover`;
     cover.loading = "lazy";
+    if (video.source === "instagram") {
+      cover.referrerPolicy = "no-referrer";
+    }
 
     const body = document.createElement("div");
     body.className = "release-body";
 
     const title = document.createElement("h3");
-    title.textContent = formatVideoTitle(video.title);
+    const fallbackLabel =
+      video.source === "youtube"
+        ? "YouTube Upload"
+        : SOURCE_LABELS[video.source]
+          ? `${SOURCE_LABELS[video.source]} Post`
+          : "Social Post";
+    const displayTitle = formatVideoTitle(video.title, video.source) || fallbackLabel;
+    title.textContent = displayTitle;
 
     const desc = document.createElement("p");
-    const descText = video.description || "YouTube Upload";
+    const descText = video.description || fallbackLabel;
     desc.textContent = truncateText(descText, 120);
 
     body.appendChild(title);
     body.appendChild(desc);
+    cover.alt = `${displayTitle} Cover`;
     card.appendChild(cover);
+    if (video.source && SOURCE_ICON_MAP[video.source]) {
+      const badge = document.createElement("span");
+      badge.className = `source-badge source-${video.source}`;
+      const icon = document.createElement("img");
+      icon.src = SOURCE_ICON_MAP[video.source];
+      icon.alt = SOURCE_LABELS[video.source] || video.source;
+      badge.appendChild(icon);
+      card.appendChild(badge);
+    }
     card.appendChild(body);
     fragment.appendChild(card);
   });
@@ -644,8 +925,10 @@ async function loadYouTubeContent({ forceRefresh = false } = {}) {
   const latestCard = document.getElementById("latest-video-card");
   const grid = document.getElementById("youtube-grid");
   const status = document.getElementById("youtube-status");
+  const needsLatest = Boolean(latestCard);
+  const needsGrid = Boolean(grid);
 
-  if (!latestCard && !grid) {
+  if (!needsLatest && !needsGrid) {
     youtubeLoading = false;
     return;
   }
@@ -657,42 +940,74 @@ async function loadYouTubeContent({ forceRefresh = false } = {}) {
       cachedFeed.format === "jina"
         ? parseYouTubeFeedFromJina(cachedFeed.text)
         : parseYouTubeFeed(cachedFeed.text);
-    if (cachedVideos.length) {
+    if (cachedVideos.length && needsLatest) {
       renderLatestVideo(cachedVideos[0]);
-      renderVideoGrid(cachedVideos);
     }
   }
 
-  if (!cachedVideos.length) {
-    renderLatestSkeleton();
-    renderGridSkeleton();
+  const cachedInstagram = forceRefresh ? null : loadCachedInstagramFeed();
+  if (needsGrid) {
+    const cachedCombined = mergeMediaItems(cachedVideos, cachedInstagram || []);
+    if (cachedCombined.length) {
+      renderVideoGrid(cachedCombined);
+    }
   }
 
-  const feed = await fetchYouTubeFeed();
-  if (!feed) {
-    if (!cachedVideos.length) {
+  if (!cachedVideos.length && (!cachedInstagram || !cachedInstagram.length)) {
+    if (needsLatest) renderLatestSkeleton();
+    if (needsGrid) renderGridSkeleton();
+  }
+
+  const fetchTasks = [
+    fetchYouTubeFeed(),
+    needsGrid ? fetchLocalSocialFeed() : Promise.resolve([]),
+    needsGrid ? fetchInstagramFeed() : Promise.resolve(null)
+  ];
+
+  const [feed, localSocialItems, instagramItems] = await Promise.all(fetchTasks);
+
+  let youtubeVideos = [];
+  if (feed) {
+    saveCachedFeed(feed);
+    youtubeVideos =
+      feed.format === "jina"
+        ? parseYouTubeFeedFromJina(feed.text)
+        : parseYouTubeFeed(feed.text);
+  }
+
+  if (!youtubeVideos.length) {
+    youtubeVideos = cachedVideos;
+  }
+
+  let finalInstagramItems =
+    instagramItems && instagramItems.length ? instagramItems : cachedInstagram || [];
+  if (needsGrid) {
+    finalInstagramItems = await hydrateInstagramItems(finalInstagramItems);
+  }
+  const combined = needsGrid
+    ? mergeMediaItems(youtubeVideos, localSocialItems, finalInstagramItems)
+    : [];
+
+  if (needsLatest) {
+    if (youtubeVideos.length) {
+      renderLatestVideo(youtubeVideos[0]);
+    } else if (!cachedVideos.length) {
       renderFeedError("Videos konnten nicht geladen werden.");
     }
-    youtubeLoading = false;
-    return;
   }
 
-  saveCachedFeed(feed);
-
-  const videos =
-    feed.format === "jina"
-      ? parseYouTubeFeedFromJina(feed.text)
-      : parseYouTubeFeed(feed.text);
-  if (!videos.length) {
-    if (!cachedVideos.length) {
-      renderFeedError("Noch keine Videos verfügbar.");
+  if (needsGrid) {
+    if (combined.length) {
+      renderVideoGrid(combined);
+    } else if (!cachedVideos.length && !cachedInstagram?.length) {
+      renderFeedError("Videos konnten nicht geladen werden.");
     }
-    youtubeLoading = false;
-    return;
   }
 
-  renderLatestVideo(videos[0]);
-  renderVideoGrid(videos);
+  if (status && needsGrid && combined.length) {
+    status.remove();
+  }
+
   youtubeLoading = false;
 }
 

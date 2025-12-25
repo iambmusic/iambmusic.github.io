@@ -586,6 +586,7 @@ a:focus-visible,
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
+  position: relative;
   box-shadow: var(--shadow);
   transition: transform 0.25s ease, border 0.25s ease, box-shadow 0.25s ease;
   display: flex;
@@ -616,6 +617,27 @@ a:focus-visible,
 .release-body p {
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.source-badge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(8, 10, 14, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 12px 24px rgba(2, 6, 15, 0.5);
+  z-index: 2;
+}
+
+.source-badge img {
+  width: 18px;
+  height: 18px;
+  filter: brightness(0) invert(1);
 }
 
 
