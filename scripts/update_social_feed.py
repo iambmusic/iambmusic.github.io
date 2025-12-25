@@ -42,7 +42,7 @@ def download_image(url, dest_path):
                     handle.write(chunk)
         return True
     except requests.RequestException:
-    return False
+        return False
 
 
 def truncate_text(text, max_length):
