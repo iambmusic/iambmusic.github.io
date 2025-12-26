@@ -23,6 +23,9 @@ USER_AGENT = (
     "Chrome/120.0.0.0 Safari/537.36"
 )
 IG_APP_ID = "936619743392459"
+REQUEST_TIMEOUT = int(os.environ.get("SOCIAL_FEED_TIMEOUT", "20"))
+SESSION = requests.Session()
+SESSION.headers.update({"User-Agent": USER_AGENT})
 
 
 def is_limit_reached(items):
@@ -35,9 +38,9 @@ def limit_items(items):
     return items[:MAX_ITEMS]
 
 
-def fetch_json(url, headers=None, timeout=20):
+def fetch_json(url, headers=None, timeout=REQUEST_TIMEOUT):
     try:
-        response = requests.get(url, headers=headers, timeout=timeout)
+        response = SESSION.get(url, headers=headers, timeout=timeout)
         if response.status_code != 200:
             return None
         return response.json()
@@ -47,12 +50,17 @@ def fetch_json(url, headers=None, timeout=20):
         return None
 
 
-def download_image(url, dest_path, headers=None):
+def download_image(url, dest_path, headers=None, timeout=REQUEST_TIMEOUT):
     request_headers = {"User-Agent": USER_AGENT}
     if headers:
         request_headers.update(headers)
     try:
-        response = requests.get(url, headers=request_headers, timeout=20, stream=True)
+        response = SESSION.get(
+            url,
+            headers=request_headers,
+            timeout=timeout,
+            stream=True,
+        )
         if response.status_code != 200:
             return False
         content_type = response.headers.get("Content-Type", "")
@@ -110,8 +118,8 @@ def fetch_instagram_items_paginated(user_id):
         url = f"https://www.instagram.com/api/v1/feed/user/{user_id}/?count=50"
         if max_id:
             url = f"{url}&max_id={max_id}"
-        data = fetch_json(url, headers=headers)
-        if not isinstance(data, dict):
+        data, error = fetch_instagram_page(url, headers)
+        if error:
             return items if items else None
         for entry in data.get("items", []):
             normalized = normalize_instagram_item(entry)
@@ -132,6 +140,21 @@ def fetch_instagram_items_paginated(user_id):
             break
         max_id = next_max_id
     return items
+
+
+def fetch_instagram_page(url, headers):
+    try:
+        response = SESSION.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
+    except requests.Timeout:
+        return None, "timeout"
+    except requests.RequestException:
+        return None, "error"
+    if response.status_code != 200:
+        return None, f"status_{response.status_code}"
+    try:
+        return response.json(), None
+    except ValueError:
+        return None, "json"
 
 
 def normalize_instagram_item(entry):
