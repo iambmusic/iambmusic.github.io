@@ -310,11 +310,13 @@ document.querySelectorAll(".contact-links a").forEach((link) => {
 const SOCIAL_FEED_PATH = "assets/social-feed.json";
 const SOURCE_ICON_MAP = {
   youtube: "assets/icons/youtube.svg",
-  instagram: "assets/icons/instagram.svg"
+  instagram: "assets/icons/instagram.svg",
+  tiktok: "assets/icons/tiktok.svg"
 };
 const SOURCE_LABELS = {
   youtube: "YouTube",
-  instagram: "Instagram"
+  instagram: "Instagram",
+  tiktok: "TikTok"
 };
 const INSTAGRAM_USERNAME = "iamb.synthmusic";
 const INSTAGRAM_PROFILE_URL =
@@ -350,6 +352,66 @@ function truncateText(text, maxLength) {
   if (!text) return "";
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength).trim()}...`;
+}
+
+let currentMediaItems = [];
+let activeMediaFilters = new Set();
+
+function filterMediaItems(items, filters) {
+  if (!filters || !filters.size) return [];
+  return items.filter((item) => filters.has(item.source));
+}
+
+function getMediaFilterLabels(filters) {
+  return Array.from(filters).map((filter) => SOURCE_LABELS[filter] || filter);
+}
+
+function updateMediaFilterButtons() {
+  document.querySelectorAll("[data-media-filter]").forEach((button) => {
+    const filter = button.dataset.mediaFilter;
+    const isActive = filter ? activeMediaFilters.has(filter) : false;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+}
+
+function setActiveMediaFilters(filters) {
+  activeMediaFilters = new Set(filters);
+  updateMediaFilterButtons();
+  if (!currentMediaItems.length) return;
+  renderVideoGrid(currentMediaItems);
+}
+
+function toggleMediaFilter(filter) {
+  if (!filter) return;
+  if (activeMediaFilters.has(filter)) {
+    activeMediaFilters.delete(filter);
+  } else {
+    activeMediaFilters.add(filter);
+  }
+  updateMediaFilterButtons();
+  if (!currentMediaItems.length) return;
+  renderVideoGrid(currentMediaItems);
+}
+
+function initMediaFilters() {
+  const buttons = document.querySelectorAll("[data-media-filter]");
+  if (!buttons.length) return;
+  buttons.forEach((button) => {
+    button.addEventListener("click", () => {
+      toggleMediaFilter(button.dataset.mediaFilter);
+    });
+  });
+  const activeFromMarkup = Array.from(buttons)
+    .map((button) =>
+      button.classList.contains("is-active") ? button.dataset.mediaFilter : null
+    )
+    .filter(Boolean);
+  const allFilters = Array.from(buttons)
+    .map((button) => button.dataset.mediaFilter)
+    .filter(Boolean);
+  const initialFilters = activeFromMarkup.length ? activeFromMarkup : allFilters;
+  setActiveMediaFilters(initialFilters);
 }
 
 function parseTimestamp(value) {
@@ -560,6 +622,13 @@ function parseLocalSocialFeed(data) {
   if (Array.isArray(data.items)) {
     data.items.forEach((item) => {
       const normalized = normalizeSocialItem(item);
+      if (normalized) items.push(normalized);
+    });
+  }
+
+  if (Array.isArray(data.tiktok)) {
+    data.tiktok.forEach((item) => {
+      const normalized = normalizeSocialItem(item, "tiktok");
       if (normalized) items.push(normalized);
     });
   }
@@ -859,15 +928,36 @@ function renderVideoGrid(videos) {
   const status = document.getElementById("youtube-status");
   if (!grid) return;
 
+  currentMediaItems = videos;
+  const filteredVideos = filterMediaItems(videos, activeMediaFilters);
+
   grid.innerHTML = "";
+  if (!filteredVideos.length) {
+    if (status) {
+      if (!activeMediaFilters.size) {
+        status.textContent = "Keine Filter ausgewählt.";
+      } else if (!videos.length) {
+        status.textContent = "Keine Inhalte gefunden.";
+      } else {
+        const labelList = getMediaFilterLabels(activeMediaFilters).join(", ");
+        status.textContent = `Keine Inhalte für ${labelList}.`;
+      }
+      status.style.display = "flex";
+    }
+    return;
+  }
+
   const fragment = document.createDocumentFragment();
-  videos.forEach((video) => {
+  filteredVideos.forEach((video) => {
     const card = document.createElement("a");
     card.className = "release-card";
     card.href = video.url;
     card.target = "_blank";
     card.rel = "noopener";
     card.setAttribute("data-animate", "");
+    if (video.source) {
+      card.dataset.source = video.source;
+    }
 
     const cover = document.createElement("img");
     cover.className = "release-cover";
@@ -915,7 +1005,7 @@ function renderVideoGrid(videos) {
   observeAnimatedElements(grid.querySelectorAll("[data-animate]"));
 
   if (status) {
-    status.remove();
+    status.style.display = "none";
   }
 }
 
@@ -1005,10 +1095,11 @@ async function loadYouTubeContent({ forceRefresh = false } = {}) {
   }
 
   if (status && needsGrid && combined.length) {
-    status.remove();
+    status.style.display = "none";
   }
 
   youtubeLoading = false;
 }
 
+initMediaFilters();
 loadYouTubeContent();

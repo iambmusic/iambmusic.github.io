@@ -313,6 +313,7 @@ a:focus-visible,
   border: 1px solid transparent;
   font-weight: 600;
   letter-spacing: 0.02em;
+  color: var(--text);
   transition: transform 0.2s ease, box-shadow 0.2s ease, border 0.2s ease;
 }
 
@@ -323,7 +324,7 @@ a:focus-visible,
 
 .btn.primary {
   background: linear-gradient(120deg, #d1892c, #f0b55c);
-  color: #121212;
+  color: #2c1b0c;
 }
 
 .btn-cta-pulse {
@@ -551,6 +552,23 @@ a:focus-visible,
 .feed-status .btn {
   padding: 0.45rem 0.9rem;
   font-size: 0.85rem;
+}
+
+.media-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0 auto 1.2rem;
+}
+
+.filter-btn {
+  cursor: pointer;
+}
+
+.filter-btn.is-active {
+  background: linear-gradient(120deg, #d1892c, #f0b55c);
+  color: #2c1b0c;
+  border-color: transparent;
 }
 
 
