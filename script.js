@@ -301,11 +301,18 @@ function setupNavHighlight() {
 
 setupNavHighlight();
 
-document.querySelectorAll(".contact-links a").forEach((link) => {
-  if (!link.getAttribute("aria-label")) {
-    link.setAttribute("aria-label", link.textContent.trim());
-  }
-});
+const contactLinks = document.querySelectorAll(".contact-links a");
+if (contactLinks.length) {
+  contactLinks.forEach((link) => {
+    if (!link.getAttribute("aria-label")) {
+      link.setAttribute("aria-label", link.textContent.trim());
+    }
+  });
+}
+
+const latestVideoCard = document.getElementById("latest-video-card");
+const youtubeGrid = document.getElementById("youtube-grid");
+const youtubeStatus = document.getElementById("youtube-status");
 
 const SOCIAL_FEED_PATH = "assets/social-feed.json";
 const SOURCE_ICON_MAP = {
@@ -356,6 +363,7 @@ function truncateText(text, maxLength) {
 
 let currentMediaItems = [];
 let activeMediaFilters = new Set();
+let mediaFilterButtons = [];
 
 function filterMediaItems(items, filters) {
   if (!filters || !filters.size) return [];
@@ -367,7 +375,11 @@ function getMediaFilterLabels(filters) {
 }
 
 function updateMediaFilterButtons() {
-  document.querySelectorAll("[data-media-filter]").forEach((button) => {
+  const buttons = mediaFilterButtons.length
+    ? mediaFilterButtons
+    : document.querySelectorAll("[data-media-filter]");
+  if (!buttons.length) return;
+  buttons.forEach((button) => {
     const filter = button.dataset.mediaFilter;
     const isActive = filter ? activeMediaFilters.has(filter) : false;
     button.classList.toggle("is-active", isActive);
@@ -397,6 +409,7 @@ function toggleMediaFilter(filter) {
 function initMediaFilters() {
   const buttons = document.querySelectorAll("[data-media-filter]");
   if (!buttons.length) return;
+  mediaFilterButtons = Array.from(buttons);
   buttons.forEach((button) => {
     button.addEventListener("click", () => {
       toggleMediaFilter(button.dataset.mediaFilter);
@@ -806,10 +819,9 @@ function saveCachedFeed(feed) {
 
 
 function renderLatestSkeleton() {
-  const latestCard = document.getElementById("latest-video-card");
-  if (!latestCard) return;
-  latestCard.classList.add("is-loading");
-  latestCard.innerHTML = `
+  if (!latestVideoCard) return;
+  latestVideoCard.classList.add("is-loading");
+  latestVideoCard.innerHTML = `
     <div class="skeleton-block skeleton-cover"></div>
     <div class="latest-video-body">
       <div class="skeleton-block skeleton-title"></div>
@@ -823,11 +835,9 @@ function renderLatestSkeleton() {
 }
 
 function renderGridSkeleton(count = 6) {
-  const grid = document.getElementById("youtube-grid");
-  const status = document.getElementById("youtube-status");
-  if (!grid) return;
+  if (!youtubeGrid) return;
 
-  grid.innerHTML = "";
+  youtubeGrid.innerHTML = "";
   const fragment = document.createDocumentFragment();
   for (let i = 0; i < count; i += 1) {
     const card = document.createElement("div");
@@ -841,10 +851,10 @@ function renderGridSkeleton(count = 6) {
     `;
     fragment.appendChild(card);
   }
-  grid.appendChild(fragment);
+  youtubeGrid.appendChild(fragment);
 
-  if (status) {
-    status.textContent = "Videos werden geladen.";
+  if (youtubeStatus) {
+    youtubeStatus.textContent = "Videos werden geladen.";
   }
 }
 
@@ -857,18 +867,17 @@ function attachRetry(container) {
 }
 
 function renderFeedError(message) {
-  const latestCard = document.getElementById("latest-video-card");
-  const status = document.getElementById("youtube-status");
+  const status = youtubeStatus;
 
-  if (latestCard) {
-    latestCard.classList.remove("is-loading");
-    latestCard.innerHTML = `
+  if (latestVideoCard) {
+    latestVideoCard.classList.remove("is-loading");
+    latestVideoCard.innerHTML = `
       <div class="feed-error">
         <p class="feed-status">${message}</p>
         <button class="btn ghost js-retry" type="button">Erneut versuchen</button>
       </div>
     `;
-    attachRetry(latestCard);
+    attachRetry(latestVideoCard);
   }
 
   if (status) {
@@ -881,11 +890,10 @@ function renderFeedError(message) {
 }
 
 function renderLatestVideo(video) {
-  const latestCard = document.getElementById("latest-video-card");
-  if (!latestCard || !video) return;
+  if (!latestVideoCard || !video) return;
 
-  latestCard.classList.remove("is-loading");
-  latestCard.innerHTML = "";
+  latestVideoCard.classList.remove("is-loading");
+  latestVideoCard.innerHTML = "";
 
   const cover = document.createElement("img");
   cover.className = "latest-video-cover";
@@ -919,13 +927,13 @@ function renderLatestVideo(video) {
   body.appendChild(desc);
   body.appendChild(actions);
 
-  latestCard.appendChild(cover);
-  latestCard.appendChild(body);
+  latestVideoCard.appendChild(cover);
+  latestVideoCard.appendChild(body);
 }
 
 function renderVideoGrid(videos) {
-  const grid = document.getElementById("youtube-grid");
-  const status = document.getElementById("youtube-status");
+  const grid = youtubeGrid;
+  const status = youtubeStatus;
   if (!grid) return;
 
   currentMediaItems = videos;
@@ -1012,11 +1020,8 @@ function renderVideoGrid(videos) {
 async function loadYouTubeContent({ forceRefresh = false } = {}) {
   if (youtubeLoading) return;
   youtubeLoading = true;
-  const latestCard = document.getElementById("latest-video-card");
-  const grid = document.getElementById("youtube-grid");
-  const status = document.getElementById("youtube-status");
-  const needsLatest = Boolean(latestCard);
-  const needsGrid = Boolean(grid);
+  const needsLatest = Boolean(latestVideoCard);
+  const needsGrid = Boolean(youtubeGrid);
 
   if (!needsLatest && !needsGrid) {
     youtubeLoading = false;
@@ -1094,8 +1099,8 @@ async function loadYouTubeContent({ forceRefresh = false } = {}) {
     }
   }
 
-  if (status && needsGrid && combined.length) {
-    status.style.display = "none";
+  if (youtubeStatus && needsGrid && combined.length) {
+    youtubeStatus.style.display = "none";
   }
 
   youtubeLoading = false;
