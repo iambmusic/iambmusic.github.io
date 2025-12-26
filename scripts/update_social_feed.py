@@ -111,24 +111,29 @@ def fetch_instagram_items():
     return items
 
 
-def load_existing_items(path):
+def load_existing_payload(path):
     if not path.exists():
-        return []
+        return {"items": [], "tiktok": []}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except ValueError:
-        return []
-    if isinstance(data, dict) and isinstance(data.get("items"), list):
-        return data["items"]
-    return []
+        return {"items": [], "tiktok": []}
+    if not isinstance(data, dict):
+        return {"items": [], "tiktok": []}
+    items = data.get("items") if isinstance(data.get("items"), list) else []
+    tiktok = data.get("tiktok") if isinstance(data.get("tiktok"), list) else []
+    return {"items": items, "tiktok": tiktok}
 
 
 def main():
     instagram_items = fetch_instagram_items()
     print(f"Instagram items: {len(instagram_items)}")
-    manual_items = load_existing_items(OUTPUT_PATH)
+    existing_payload = load_existing_payload(OUTPUT_PATH)
+    manual_items = existing_payload["items"]
+    manual_tiktok = existing_payload["tiktok"]
 
     payload = {
+        "tiktok": manual_tiktok,
         "instagram": instagram_items,
         "items": manual_items,
     }
