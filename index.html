@@ -4,14 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>IAMB Synthmusic</title>
-  <meta name="description" content="IAMB Synthmusic - cinematischer Synthwave und atmosphärische Produktionen. Hör jetzt die Releases auf deinen Lieblingsplattformen.">
+  <meta name="description" content="IAMB Synthmusic - cinematischer Synthwave und atmosph&auml;rische Produktionen. H&ouml;r jetzt die Releases auf deinen Lieblingsplattformen.">
     <link rel="preload" as="image" href="assets/iamb-logo-circle.png">
   <link rel="stylesheet" href="assets/fonts/fonts.css">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260321-no-source-chips">
 </head>
 <body>
   <canvas id="starfield" aria-hidden="true"></canvas>
-  <div class="grain" aria-hidden="true"></div>
 
   <header class="site-header">
     <div class="container nav-wrap">
@@ -19,7 +18,7 @@
         <a href="index.html#home">Home</a>
         <a href="index.html#plattformen">Plattformen</a>
         <a href="musik.html">Musik</a>
-        <a href="about.html">Über Mich</a>
+        <a href="about.html">&Uuml;ber Mich</a>
       </nav>
       <div class="header-audio" data-audio-player>
         <audio id="site-audio" preload="metadata" loop></audio>
@@ -42,29 +41,37 @@
     <section id="home" class="section hero">
       <div class="container hero-grid">
         <div class="hero-media" data-animate>
-          <div class="logo-ring"></div>
-          <img class="logo" src="assets/iamb-logo-circle.png" alt="IAMB Synthmusic Logo">
+          <div class="logo-visualizer">
+            <canvas id="audio-visualizer" aria-label="Circular Sound Visualizer" role="img"></canvas>
+            <div class="logo-ring"></div>
+            <img class="logo" src="assets/iamb-logo-circle.png" alt="IAMB Synthmusic Logo">
+          </div>
         </div>
         <div class="hero-copy glow-anchor" data-animate>
           <p class="eyebrow">Electronic Soundtracks</p>
           <h1>Music from the Space Stage</h1>
           <p class="lead">Enjoy!</p>
           <div class="cta-row">
-            <a class="btn primary btn-cta-pulse" href="musik.html">Musik entdecken</a>
-            <a class="btn ghost" href="about.html#about">Über mich</a>
+            <a class="btn primary btn-cta-pulse cta-music-btn" href="musik.html">
+              <span>Musik entdecken</span>
+            </a>
+            <a class="btn ghost" href="about.html#about">&Uuml;ber mich</a>
           </div>
         </div>
       </div>
 
       <div class="container latest-video">
+        <div class="latest-video-intro" data-animate>
+          <h2>Neueste 4 Uploads</h2>
+        </div>
         <div class="latest-video-card" id="latest-video-card" data-animate>
-          <p class="feed-status">Neuestes Video wird geladen.</p>
+          <p class="feed-status">Neueste Uploads werden geladen.</p>
         </div>
       </div>
 
       <div id="plattformen" class="container section-head platforms-head full-head" data-animate>
         <h2>Plattformen</h2>
-        <p>Meine Musikvideos findest du auf den Kanälen YouTube, TikTok und Instagram. Dort kannst du auch immer meine aktuellsten Musikprojekte verfolgen. Wenn du mich supporten möchtest, dann lass auf deiner Lieblingsplattform gerne ein Abo da um zukünftig nichts mehr zu verpassen.</p>
+        <p>Meine Musikvideos findest du auf den Kan&auml;len YouTube, TikTok und Instagram. Dort kannst du auch immer meine aktuellsten Musikprojekte verfolgen. Wenn du mich supporten m&ouml;chtest, dann lass auf deiner Lieblingsplattform gerne ein Abo da um zuk&uuml;nftig nichts mehr zu verpassen.</p>
       </div>
       <div class="container platform-grid">
         <a class="platform-card" href="https://www.youtube.com/@iamb-synthmusic7820" target="_blank" rel="noopener" data-animate>
@@ -159,7 +166,7 @@
   <footer class="site-footer">
     <div class="container footer-grid">
       <div>
-        <p class="footer-legal">© 2025 IAMB Synthmusic. Alle Rechte vorbehalten.</p>
+        <p class="footer-legal">&copy; 2026 IAMB Synthmusic. Alle Rechte vorbehalten.</p>
         <div class="footer-contact">
           <h3>Kontaktiere mich</h3>
           <a class="footer-email" href="mailto:iamb.synthmusic@gmail.com">iamb.synthmusic@gmail.com</a>
@@ -209,6 +216,6 @@
     </div>
   </footer>
 
-  <script src="script.js"></script>
+  <script src="script.js?v=20260321-no-source-chips"></script>
 </body>
 </html>
