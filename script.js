@@ -328,10 +328,95 @@ function initHeaderAudioPlayer() {
 
   if (!audio || !playButton || !playIcon || !trackButtons.length) return;
 
+  const AUDIO_STATE_KEY = "iamb_header_audio_state_v1";
   const canPlayM4A = audio.canPlayType('audio/mp4; codecs="mp4a.40.2"') !== "";
   let currentTrackIndex = 0;
+  let pendingResumeOnGesture = null;
 
   const getSourceForTrack = (track) => (canPlayM4A ? track.m4a : track.mp3);
+
+  const readStoredState = () => {
+    try {
+      const raw = sessionStorage.getItem(AUDIO_STATE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return null;
+      return {
+        trackIndex: Number(parsed.trackIndex),
+        currentTime: Number(parsed.currentTime),
+        isPlaying: Boolean(parsed.isPlaying)
+      };
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const writeStoredState = () => {
+    try {
+      sessionStorage.setItem(
+        AUDIO_STATE_KEY,
+        JSON.stringify({
+          trackIndex: currentTrackIndex,
+          currentTime: Number(audio.currentTime || 0),
+          isPlaying: !audio.paused && !audio.ended
+        })
+      );
+    } catch (error) {
+      // Ignore storage errors.
+    }
+  };
+
+  const clearPendingResumeGesture = () => {
+    if (!pendingResumeOnGesture) return;
+    window.removeEventListener("pointerdown", pendingResumeOnGesture);
+    window.removeEventListener("keydown", pendingResumeOnGesture);
+    pendingResumeOnGesture = null;
+  };
+
+  const queueResumeOnGesture = () => {
+    if (pendingResumeOnGesture) return;
+    pendingResumeOnGesture = async () => {
+      clearPendingResumeGesture();
+      try {
+        await audio.play();
+      } catch (error) {
+        setPlayingState(false);
+      }
+    };
+    window.addEventListener("pointerdown", pendingResumeOnGesture, { once: true });
+    window.addEventListener("keydown", pendingResumeOnGesture, { once: true });
+  };
+
+  const tryMutedResume = async () => {
+    const previousMuted = audio.muted;
+    const previousVolume = audio.volume;
+    try {
+      audio.muted = true;
+      await audio.play();
+      audio.volume = previousVolume;
+      audio.muted = previousMuted;
+      return true;
+    } catch (error) {
+      audio.volume = previousVolume;
+      audio.muted = previousMuted;
+      return false;
+    }
+  };
+
+  const tryResumePlayback = async () => {
+    clearPendingResumeGesture();
+    try {
+      await audio.play();
+      return true;
+    } catch (error) {
+      const mutedStarted = await tryMutedResume();
+      if (mutedStarted) {
+        return true;
+      }
+      queueResumeOnGesture();
+      return false;
+    }
+  };
 
   const setPlayingState = (isPlaying) => {
     playIcon.src = isPlaying ? AUDIO_PAUSE_ICON_PATH : AUDIO_PLAY_ICON_PATH;
@@ -341,6 +426,13 @@ function initHeaderAudioPlayer() {
       isPlaying ? "Pause background music" : "Play background music"
     );
     playButton.setAttribute("aria-pressed", isPlaying ? "true" : "false");
+    document.body.classList.toggle("music-live", isPlaying);
+    document.dispatchEvent(new CustomEvent("iamb-audio-state", {
+      detail: {
+        isPlaying,
+        trackIndex: currentTrackIndex
+      }
+    }));
   };
 
   const setActiveTrackButton = (activeIndex) => {
@@ -372,10 +464,12 @@ function initHeaderAudioPlayer() {
         setPlayingState(false);
       }
     }
+    writeStoredState();
   };
 
   playButton.addEventListener("click", async () => {
     if (audio.paused || audio.ended) {
+      clearPendingResumeGesture();
       try {
         await audio.play();
       } catch (error) {
@@ -391,18 +485,304 @@ function initHeaderAudioPlayer() {
       const trackIndex = Number(button.dataset.audioTrack);
       if (Number.isNaN(trackIndex) || trackIndex === currentTrackIndex) return;
       await loadTrack(trackIndex, true);
+      writeStoredState();
     });
   });
 
-  audio.addEventListener("play", () => setPlayingState(true));
-  audio.addEventListener("pause", () => setPlayingState(false));
-  audio.addEventListener("ended", () => setPlayingState(false));
+  audio.addEventListener("play", () => {
+    setPlayingState(true);
+    clearPendingResumeGesture();
+    writeStoredState();
+  });
+  audio.addEventListener("pause", () => {
+    setPlayingState(false);
+    writeStoredState();
+  });
+  audio.addEventListener("ended", () => {
+    setPlayingState(false);
+    writeStoredState();
+  });
+  audio.addEventListener("timeupdate", writeStoredState);
+  window.addEventListener("pagehide", () => writeStoredState());
+  window.addEventListener("beforeunload", () => writeStoredState());
 
-  loadTrack(0, false);
-  setPlayingState(false);
+  const savedState = readStoredState();
+  const startIndex =
+    savedState &&
+    Number.isInteger(savedState.trackIndex) &&
+    savedState.trackIndex >= 0 &&
+    savedState.trackIndex < HEADER_AUDIO_TRACKS.length
+      ? savedState.trackIndex
+      : 0;
+
+  loadTrack(startIndex, false);
+  setPlayingState(Boolean(savedState?.isPlaying));
+
+  if (savedState && Number.isFinite(savedState.currentTime) && savedState.currentTime > 0) {
+    const seekToSavedTime = () => {
+      const safeTime = Math.max(0, savedState.currentTime);
+      try {
+        audio.currentTime = safeTime;
+      } catch (error) {
+        // Ignore seek errors.
+      }
+    };
+    if (audio.readyState >= 1) {
+      seekToSavedTime();
+    } else {
+      audio.addEventListener("loadedmetadata", seekToSavedTime, { once: true });
+    }
+  }
+
+  if (savedState?.isPlaying) {
+    const attemptResume = () => {
+      tryResumePlayback().then((resumed) => {
+        if (!resumed && audio.readyState < 2) {
+          audio.addEventListener("canplay", () => {
+            tryResumePlayback();
+          }, { once: true });
+        }
+      });
+    };
+
+    if (audio.readyState >= 2) {
+      attemptResume();
+    } else {
+      audio.addEventListener("loadedmetadata", attemptResume, { once: true });
+    }
+  }
 }
 
 initHeaderAudioPlayer();
+
+function initCircularAudioVisualizer() {
+  const canvas = document.getElementById("audio-visualizer");
+  const audio = document.getElementById("site-audio");
+  const logoElement = document.querySelector(".logo");
+  if (!canvas || !audio) return;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+
+  const audioContext = new AudioContextClass();
+  const splitter = audioContext.createChannelSplitter(2);
+  const analyserL = audioContext.createAnalyser();
+  const analyserR = audioContext.createAnalyser();
+  analyserL.fftSize = 8192;
+  analyserR.fftSize = 8192;
+
+  let sourceNode;
+  try {
+    sourceNode = audioContext.createMediaElementSource(audio);
+  } catch (error) {
+    return;
+  }
+
+  sourceNode.connect(splitter);
+  splitter.connect(analyserL, 0, 0);
+  splitter.connect(analyserR, 1, 0);
+  sourceNode.connect(audioContext.destination);
+
+  const bufferLengthL = analyserL.frequencyBinCount;
+  const bufferLengthR = analyserR.frequencyBinCount;
+  const audioDataArrayL = new Uint8Array(bufferLengthL);
+  const audioDataArrayR = new Uint8Array(bufferLengthR);
+
+  const angleExtra = 90;
+  let centerX = 0;
+  let centerY = 0;
+  let radius = 0;
+  let steps = 0;
+  let interval = 0;
+  let pCircle = 0;
+  let renderWidth = 0;
+  let renderHeight = 0;
+  let pointsUp = [];
+  let pointsDown = [];
+  const baseUp = 1.1;
+  const baseDown = 0.9;
+  const upGain = 0.8;
+  const downGain = 0.2;
+  let amplitudeScale = 0.3;
+  const idleUpAmp = 0.055;
+  const idleDownAmp = 0.03;
+  const idleLerp = 0.14;
+
+  function setupCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    renderWidth = Math.max(220, Math.round(rect.width));
+    renderHeight = Math.max(150, Math.round(rect.height));
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(renderWidth * dpr);
+    canvas.height = Math.floor(renderHeight * dpr);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
+
+    centerX = renderWidth / 2;
+    centerY = renderHeight / 2;
+    const logoRect = logoElement ? logoElement.getBoundingClientRect() : null;
+    const logoDiameter = logoRect
+      ? Math.min(logoRect.width, logoRect.height)
+      : Math.min(renderWidth, renderHeight) * 0.78;
+    const logoRadius = logoDiameter / 2;
+
+    const targetRadius = window.innerWidth <= 425 ? 120 : 160;
+    amplitudeScale = window.innerWidth <= 425 ? 0.34 : 0.3;
+    const desiredBaseOuter = logoRadius + (window.innerWidth <= 425 ? 8 : 10);
+    const maxDist = baseUp + upGain * amplitudeScale;
+    const maxByCanvas = (Math.min(renderWidth, renderHeight) / 2 - 2) / maxDist;
+    radius = Math.min(targetRadius, desiredBaseOuter / baseUp, maxByCanvas);
+    steps = window.innerWidth <= 425 ? 60 : 120;
+    interval = 360 / steps;
+    pCircle = 2 * Math.PI * radius;
+
+    pointsUp = [];
+    pointsDown = [];
+    for (let angle = 0; angle < 360; angle += interval) {
+      const distUp = baseUp;
+      const distDown = baseDown;
+
+      pointsUp.push({
+        angle: angle + angleExtra,
+        x: centerX + radius * Math.cos((-angle + angleExtra) * Math.PI / 180) * distUp,
+        y: centerY + radius * Math.sin((-angle + angleExtra) * Math.PI / 180) * distUp,
+        dist: distUp
+      });
+
+      pointsDown.push({
+        angle: angle + angleExtra + 5,
+        x: centerX + radius * Math.cos((-angle + angleExtra + 5) * Math.PI / 180) * distDown,
+        y: centerY + radius * Math.sin((-angle + angleExtra + 5) * Math.PI / 180) * distDown,
+        dist: distDown
+      });
+    }
+  }
+
+  function drawLine(points, strokeColor, lineJoin = "round") {
+    if (!points.length) return;
+    const origin = points[0];
+    ctx.beginPath();
+    ctx.strokeStyle = strokeColor;
+    ctx.lineJoin = lineJoin;
+    ctx.moveTo(origin.x, origin.y);
+    for (let i = 0; i < points.length; i += 1) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.lineTo(origin.x, origin.y);
+    ctx.stroke();
+  }
+
+  function connectPoints(pointsA, pointsB) {
+    const count = Math.min(pointsA.length, pointsB.length);
+    for (let i = 0; i < count; i += 1) {
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(255,255,255,0.1)";
+      ctx.moveTo(pointsA[i].x, pointsA[i].y);
+      ctx.lineTo(pointsB[i].x, pointsB[i].y);
+      ctx.stroke();
+    }
+  }
+
+  function updatePoints() {
+    analyserL.getByteFrequencyData(audioDataArrayL);
+    analyserR.getByteFrequencyData(audioDataArrayR);
+
+    for (let i = 0; i < pointsUp.length; i += 1) {
+      let audioIndex = Math.ceil(pointsUp[i].angle * (bufferLengthL / (pCircle * 2))) | 0;
+      audioIndex = Math.max(0, Math.min(bufferLengthL - 1, audioIndex));
+      let audioValue = (audioDataArrayL[audioIndex] / 255) * amplitudeScale;
+
+      pointsUp[i].dist = baseUp + audioValue * upGain;
+      pointsUp[i].x = centerX + radius * Math.cos(-pointsUp[i].angle * Math.PI / 180) * pointsUp[i].dist;
+      pointsUp[i].y = centerY + radius * Math.sin(-pointsUp[i].angle * Math.PI / 180) * pointsUp[i].dist;
+
+      audioIndex = Math.ceil(pointsDown[i].angle * (bufferLengthR / (pCircle * 2))) | 0;
+      audioIndex = Math.max(0, Math.min(bufferLengthR - 1, audioIndex));
+      audioValue = (audioDataArrayR[audioIndex] / 255) * amplitudeScale;
+
+      pointsDown[i].dist = baseDown + audioValue * downGain;
+      pointsDown[i].x = centerX + radius * Math.cos(-pointsDown[i].angle * Math.PI / 180) * pointsDown[i].dist;
+      pointsDown[i].y = centerY + radius * Math.sin(-pointsDown[i].angle * Math.PI / 180) * pointsDown[i].dist;
+    }
+  }
+
+  function updateIdleWave(time) {
+    const phase = (time * 0.032) % 360;
+    const crestWidth = 14;
+    const tailOffset = 22;
+    const tailWidth = 18;
+    for (let i = 0; i < pointsUp.length; i += 1) {
+      const upDelta = ((((pointsUp[i].angle - phase) % 360) + 540) % 360) - 180;
+      const downDelta = ((((pointsDown[i].angle - (phase + 8)) % 360) + 540) % 360) - 180;
+
+      const upCrest = Math.max(0, 1 - Math.abs(upDelta) / crestWidth);
+      const upTail = Math.max(0, 1 - Math.abs(upDelta + tailOffset) / tailWidth);
+      const downCrest = Math.max(0, 1 - Math.abs(downDelta) / crestWidth);
+      const downTail = Math.max(0, 1 - Math.abs(downDelta + tailOffset) / tailWidth);
+
+      const upTarget = baseUp + upCrest * idleUpAmp - upTail * idleUpAmp * 0.42;
+      const downTarget = baseDown + downCrest * idleDownAmp - downTail * idleDownAmp * 0.42;
+
+      pointsUp[i].dist += (upTarget - pointsUp[i].dist) * idleLerp;
+      pointsDown[i].dist += (downTarget - pointsDown[i].dist) * idleLerp;
+
+      pointsUp[i].x = centerX + radius * Math.cos(-pointsUp[i].angle * Math.PI / 180) * pointsUp[i].dist;
+      pointsUp[i].y = centerY + radius * Math.sin(-pointsUp[i].angle * Math.PI / 180) * pointsUp[i].dist;
+      pointsDown[i].x = centerX + radius * Math.cos(-pointsDown[i].angle * Math.PI / 180) * pointsDown[i].dist;
+      pointsDown[i].y = centerY + radius * Math.sin(-pointsDown[i].angle * Math.PI / 180) * pointsDown[i].dist;
+    }
+  }
+
+  function render(time = 0) {
+    requestAnimationFrame(render);
+
+    const isPlaying = !audio.paused && !audio.ended;
+    canvas.classList.toggle("is-active", isPlaying);
+    if (isPlaying) {
+      updatePoints();
+    } else {
+      updateIdleWave(time);
+    }
+
+    ctx.clearRect(0, 0, renderWidth, renderHeight);
+    ctx.lineWidth = 1;
+    const joinStyle = isPlaying ? "round" : "miter";
+
+    drawLine(pointsUp, "rgba(255,255,255,0.1)", joinStyle);
+    drawLine(pointsDown, "rgba(255,255,255,0.1)", joinStyle);
+    connectPoints(pointsUp, pointsDown);
+  }
+
+  function resumeAudioContext() {
+    if (audioContext.state === "running") return Promise.resolve();
+    return audioContext.resume().catch(() => {});
+  }
+
+  audio.addEventListener("play", () => {
+    resumeAudioContext();
+  });
+
+  document.addEventListener("iamb-audio-state", (event) => {
+    if (event?.detail?.isPlaying) {
+      resumeAudioContext();
+    }
+  });
+
+  window.addEventListener("pointerdown", resumeAudioContext, { once: true });
+  window.addEventListener("keydown", resumeAudioContext, { once: true });
+  window.addEventListener("resize", setupCanvas, { passive: true });
+  setupCanvas();
+  if (!audio.paused && !audio.ended) {
+    resumeAudioContext();
+  }
+  render();
+}
+
+initCircularAudioVisualizer();
 
 const contactLinks = document.querySelectorAll(".contact-links a");
 if (contactLinks.length) {
@@ -423,6 +803,7 @@ const SOURCE_ICON_MAP = {
   instagram: "assets/icons/instagram.svg",
   tiktok: "assets/icons/tiktok.svg"
 };
+const TIKTOK_OFFICIAL_ICON_PATH = "assets/icons/tiktok-official.svg";
 const SOURCE_LABELS = {
   youtube: "YouTube",
   instagram: "Instagram",
@@ -933,17 +1314,20 @@ function saveCachedFeed(feed) {
 function renderLatestSkeleton() {
   if (!latestVideoCard) return;
   latestVideoCard.classList.add("is-loading");
-  latestVideoCard.innerHTML = `
-    <div class="skeleton-block skeleton-cover"></div>
-    <div class="latest-video-body">
-      <div class="skeleton-block skeleton-title"></div>
-      <div class="skeleton-block skeleton-line"></div>
-      <div class="skeleton-block skeleton-line short"></div>
-      <div class="latest-video-actions">
-        <div class="skeleton-block skeleton-button"></div>
+  const skeletonCards = Array.from({ length: 4 }, () => `
+    <article class="latest-video-item latest-video-item-skeleton">
+      <div class="skeleton-block skeleton-cover"></div>
+      <div class="latest-video-body">
+        <div class="skeleton-block skeleton-title"></div>
+        <div class="skeleton-block skeleton-line"></div>
+        <div class="skeleton-block skeleton-line short"></div>
+        <div class="latest-video-actions">
+          <div class="skeleton-block skeleton-button"></div>
+        </div>
       </div>
-    </div>
-  `;
+    </article>
+  `).join("");
+  latestVideoCard.innerHTML = skeletonCards;
 }
 
 function renderGridSkeleton(count = 6) {
@@ -1001,61 +1385,108 @@ function renderFeedError(message) {
   }
 }
 
-function renderLatestVideo(video) {
-  if (!latestVideoCard || !video) return;
+function createPlatformWatchButton(video) {
+  const sourceLabel = SOURCE_LABELS[video.source] || "Plattform";
+  const button = document.createElement("a");
+  button.className = "btn ghost latest-platform-btn";
+  button.href = video.url;
+  button.target = "_blank";
+  button.rel = "noopener";
+  button.setAttribute("aria-label", `Auf ${sourceLabel} ansehen`);
 
-  latestVideoCard.classList.remove("is-loading");
-  latestVideoCard.innerHTML = "";
+  const beforeText = document.createElement("span");
+  beforeText.textContent = "Auf";
+
+  const iconPath =
+    video.source === "tiktok"
+      ? TIKTOK_OFFICIAL_ICON_PATH
+      : SOURCE_ICON_MAP[video.source];
+  if (iconPath) {
+    const icon = document.createElement("img");
+    icon.src = iconPath;
+    icon.alt = "";
+    icon.setAttribute("aria-hidden", "true");
+    button.appendChild(beforeText);
+    button.appendChild(icon);
+  } else {
+    button.appendChild(beforeText);
+  }
+
+  const afterText = document.createElement("span");
+  afterText.textContent = "ansehen";
+  button.appendChild(afterText);
+
+  return button;
+}
+
+function createLatestVideoItem(video) {
+  const sourceLabel = SOURCE_LABELS[video.source] || "Social";
+  const card = document.createElement("article");
+  card.className = "latest-video-item";
+  if (video.source) {
+    card.dataset.source = video.source;
+  }
+
+  const media = document.createElement("div");
+  media.className = "latest-video-media";
 
   const cover = document.createElement("img");
   cover.className = "latest-video-cover";
   cover.src = video.thumbnail;
   cover.loading = "lazy";
+  if (video.source === "instagram") {
+    cover.referrerPolicy = "no-referrer";
+  }
+
+  const displayTitle =
+    formatVideoTitle(video.title, video.source) ||
+    `${sourceLabel} Upload`;
+  cover.alt = `${displayTitle} Cover`;
+
+  media.appendChild(cover);
 
   const body = document.createElement("div");
   body.className = "latest-video-body";
 
   const heading = document.createElement("h3");
-  const displayTitle = formatVideoTitle(video.title, video.source) || video.title;
   heading.textContent = displayTitle;
-  cover.alt = `${displayTitle} Cover`;
 
   const desc = document.createElement("p");
-  const descText = video.description || "Keine Beschreibung verfügbar.";
-  desc.textContent = truncateText(descText, 220);
+  const descriptionText = video.description || `${sourceLabel} Upload`;
+  desc.textContent = truncateText(descriptionText, 110);
 
   const actions = document.createElement("div");
   actions.className = "latest-video-actions";
+  actions.appendChild(createPlatformWatchButton(video));
 
-  const button = document.createElement("a");
-  button.className = "btn ghost latest-youtube-btn";
-  button.href = video.url;
-  button.target = "_blank";
-  button.rel = "noopener";
-  button.setAttribute("aria-label", "Auf YouTube ansehen");
-
-  const beforeText = document.createElement("span");
-  beforeText.textContent = "Auf";
-
-  const youtubeIcon = document.createElement("img");
-  youtubeIcon.src = SOURCE_ICON_MAP.youtube;
-  youtubeIcon.alt = "";
-  youtubeIcon.setAttribute("aria-hidden", "true");
-
-  const afterText = document.createElement("span");
-  afterText.textContent = "ansehen";
-
-  button.appendChild(beforeText);
-  button.appendChild(youtubeIcon);
-  button.appendChild(afterText);
-
-  actions.appendChild(button);
   body.appendChild(heading);
   body.appendChild(desc);
   body.appendChild(actions);
 
-  latestVideoCard.appendChild(cover);
-  latestVideoCard.appendChild(body);
+  card.appendChild(media);
+  card.appendChild(body);
+  return card;
+}
+
+function renderLatestVideos(videos) {
+  if (!latestVideoCard) return;
+  const latestVideos = videos
+    .filter((item) => item && item.url && item.thumbnail)
+    .slice(0, 4);
+
+  if (!latestVideos.length) {
+    renderFeedError("Videos konnten nicht geladen werden.");
+    return;
+  }
+
+  latestVideoCard.classList.remove("is-loading");
+  latestVideoCard.innerHTML = "";
+
+  const fragment = document.createDocumentFragment();
+  latestVideos.forEach((video) => {
+    fragment.appendChild(createLatestVideoItem(video));
+  });
+  latestVideoCard.appendChild(fragment);
 }
 
 function renderVideoGrid(videos) {
@@ -1159,11 +1590,10 @@ async function loadYouTubeContent({ forceRefresh = false } = {}) {
   if (needsGrid) renderGridSkeleton();
 
   const combined = mergeMediaItems(await fetchLocalSocialFeed());
-  const youtubeVideos = combined.filter((item) => item.source === "youtube");
 
   if (needsLatest) {
-    if (youtubeVideos.length) {
-      renderLatestVideo(youtubeVideos[0]);
+    if (combined.length) {
+      renderLatestVideos(combined);
     } else {
       renderFeedError("Videos konnten nicht geladen werden.");
     }
