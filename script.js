@@ -1471,7 +1471,13 @@ function createLatestVideoItem(video) {
 function renderLatestVideos(videos) {
   if (!latestVideoCard) return;
   const latestVideos = videos
-    .filter((item) => item && item.url && item.thumbnail)
+    .filter(
+      (item) =>
+        item &&
+        item.url &&
+        item.thumbnail &&
+        (item.source || "").toLowerCase() === "youtube"
+    )
     .slice(0, 4);
 
   if (!latestVideos.length) {
