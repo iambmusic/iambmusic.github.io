@@ -36,6 +36,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add assets/social-feed.json assets/ig-covers
+          git add assets/social-feed.json assets/ig-covers assets/tiktok-covers
           git commit -m "Update social feed"
           git push

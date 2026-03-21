@@ -22,6 +22,20 @@
         <a href="musik.html">Musik</a>
         <a href="about.html">Über Mich</a>
       </nav>
+      <div class="header-audio" data-audio-player>
+        <audio id="site-audio" preload="metadata" loop></audio>
+        <button class="audio-btn audio-play-btn" type="button" data-audio-play aria-label="Play background music" aria-pressed="false">
+          <img src="assets/icons/play.svg" alt="" data-audio-play-icon>
+        </button>
+        <div class="audio-meta">
+          <span class="audio-now-label">Now Playing</span>
+          <span class="audio-track-name" data-audio-track-name>Track 1</span>
+        </div>
+        <div class="audio-track-switch">
+          <button class="audio-btn audio-track-btn is-active" type="button" data-audio-track="0" aria-pressed="true" aria-label="Play Track 1">1</button>
+          <button class="audio-btn audio-track-btn" type="button" data-audio-track="1" aria-pressed="false" aria-label="Play Track 2">2</button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -33,7 +47,7 @@
           <img class="logo" src="assets/iamb-logo-circle.png" alt="IAMB Synthmusic Logo">
         </div>
         <div class="hero-copy glow-anchor" data-animate>
-          <p class="eyebrow">| Electronic Soundtracks |</p>
+          <p class="eyebrow">Electronic Soundtracks</p>
           <h1>Music from the Space Stage</h1>
           <p class="lead">Enjoy!</p>
           <div class="cta-row">
@@ -153,7 +167,7 @@
         </div>
       </div>
       <div class="footer-platforms">
-        <h3>Andere Plattformen</h3>
+        <h3>Alle Plattformen</h3>
         <div class="contact-links">
           <a href="https://www.youtube.com/@iamb-synthmusic7820" target="_blank" rel="noopener">
             <img src="assets/icons/youtube.svg" alt="YouTube">YouTube
