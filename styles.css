@@ -126,17 +126,10 @@ a:focus-visible,
 
 .nav-wrap {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 1fr auto;
   align-items: center;
   padding: 1.1rem 0;
   gap: 1rem;
-}
-
-.brand {
-  font-family: "Space Grotesk", sans-serif;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
 }
 
 .nav {
@@ -145,7 +138,7 @@ a:focus-visible,
   font-size: 0.95rem;
   color: var(--muted);
   margin-left: 0;
-  justify-self: center;
+  justify-self: start;
 }
 
 .nav a {
@@ -1010,15 +1003,9 @@ a:focus-visible,
 @media (max-width: 900px) {
 
   .nav-wrap {
-    grid-template-columns: auto auto;
-    grid-template-areas:
-      "brand audio"
-      "nav nav";
-    row-gap: 0.8rem;
-  }
-
-  .brand {
-    grid-area: brand;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "nav audio";
+    row-gap: 0;
   }
 
   .nav {
@@ -1026,9 +1013,9 @@ a:focus-visible,
     flex-wrap: wrap;
     gap: 0.75rem;
     font-size: 0.85rem;
-    justify-content: center;
+    justify-content: flex-start;
     margin-left: 0;
-    justify-self: center;
+    justify-self: start;
   }
 
   .nav a {
@@ -1082,18 +1069,13 @@ a:focus-visible,
     flex-wrap: wrap;
     gap: 0.48rem;
     margin-left: 0;
-    justify-content: center;
+    justify-content: flex-start;
   }
 
   .btn.small {
     padding: 0.5rem 1rem;
     font-size: 0.8rem;
     white-space: nowrap;
-  }
-
-  .brand {
-    font-size: 0.9rem;
-    letter-spacing: 0.12em;
   }
 
   .header-audio {
@@ -1179,10 +1161,6 @@ a:focus-visible,
   .nav {
     gap: 0.5rem;
     font-size: 0.8rem;
-  }
-
-  .brand {
-    font-size: 0.85rem;
   }
 
   .header-audio {
