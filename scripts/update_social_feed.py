@@ -1,31 +1,80 @@
 import json
 import os
 import re
-import sys
+import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
+
 try:
     import yt_dlp
-except ImportError:  # optional dependency for TikTok scraping
+except ImportError:
     yt_dlp = None
 
 INSTAGRAM_USER = os.environ.get("INSTAGRAM_USERNAME", "iamb.synthmusic")
 INSTAGRAM_USER_ID = os.environ.get("INSTAGRAM_USER_ID")
 TIKTOK_USER = os.environ.get("TIKTOK_USERNAME", "iamb.synthmusic")
+YOUTUBE_CHANNEL_ID = os.environ.get("YOUTUBE_CHANNEL_ID", "UCVV-a7quRaRVbh6bfrUVx4A")
 MAX_ITEMS = int(os.environ.get("SOCIAL_FEED_LIMIT", "0"))
+REQUEST_TIMEOUT = int(os.environ.get("SOCIAL_FEED_TIMEOUT", "20"))
+
 OUTPUT_PATH = Path("assets/social-feed.json")
 IG_COVER_DIR = Path("assets/ig-covers")
 TIKTOK_COVER_DIR = Path("assets/tiktok-covers")
+
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/120.0.0.0 Safari/537.36"
+    "Chrome/123.0.0.0 Safari/537.36"
 )
 IG_APP_ID = "936619743392459"
-REQUEST_TIMEOUT = int(os.environ.get("SOCIAL_FEED_TIMEOUT", "20"))
+YOUTUBE_RSS_URL = f"https://www.youtube.com/feeds/videos.xml?channel_id={YOUTUBE_CHANNEL_ID}"
+
 SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": USER_AGENT})
+
+ATOM_NS = "http://www.w3.org/2005/Atom"
+YT_NS = "http://www.youtube.com/xml/schemas/2015"
+MEDIA_NS = "http://search.yahoo.com/mrss/"
+NS = {"atom": ATOM_NS, "yt": YT_NS, "media": MEDIA_NS}
+
+
+def log(message):
+    print(message, flush=True)
+
+
+def now_iso():
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def normalize_whitespace(text):
+    return " ".join((text or "").split())
+
+
+def truncate_text(text, max_length):
+    clean = normalize_whitespace(text)
+    if len(clean) <= max_length:
+        return clean
+    return clean[:max_length].rstrip() + "..."
+
+
+def parse_timestamp_ms(value):
+    if value is None:
+        return 0
+    if isinstance(value, (int, float)):
+        return int(value) * 1000 if value < 10_000_000_000 else int(value)
+    text = str(value).strip()
+    if not text:
+        return 0
+    if text.isdigit():
+        num = int(text)
+        return num * 1000 if num < 10_000_000_000 else num
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return int(parsed.timestamp() * 1000)
+    except ValueError:
+        return 0
 
 
 def is_limit_reached(items):
@@ -34,23 +83,21 @@ def is_limit_reached(items):
 
 def limit_items(items):
     if MAX_ITEMS <= 0:
-        return items
-    return items[:MAX_ITEMS]
+        return list(items)
+    return list(items)[:MAX_ITEMS]
 
 
-def fetch_json(url, headers=None, timeout=REQUEST_TIMEOUT):
+def fetch_json(url, headers=None):
     try:
-        response = SESSION.get(url, headers=headers, timeout=timeout)
+        response = SESSION.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
         if response.status_code != 200:
             return None
         return response.json()
-    except requests.RequestException:
-        return None
-    except ValueError:
+    except (requests.RequestException, ValueError):
         return None
 
 
-def download_image(url, dest_path, headers=None, timeout=REQUEST_TIMEOUT):
+def download_image(url, dest_path, headers=None):
     request_headers = {"User-Agent": USER_AGENT}
     if headers:
         request_headers.update(headers)
@@ -58,34 +105,153 @@ def download_image(url, dest_path, headers=None, timeout=REQUEST_TIMEOUT):
         response = SESSION.get(
             url,
             headers=request_headers,
-            timeout=timeout,
+            timeout=REQUEST_TIMEOUT,
             stream=True,
         )
-        if response.status_code != 200:
-            return False
-        content_type = response.headers.get("Content-Type", "")
-        if "image" not in content_type:
-            return False
-        with dest_path.open("wb") as handle:
-            for chunk in response.iter_content(chunk_size=10240):
-                if chunk:
-                    handle.write(chunk)
-        return True
     except requests.RequestException:
         return False
 
+    if response.status_code != 200:
+        return False
+    if "image" not in (response.headers.get("Content-Type", "") or ""):
+        return False
 
-def truncate_text(text, max_length):
-    if len(text) <= max_length:
-        return text
-    return text[:max_length].rstrip() + "..."
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    with dest_path.open("wb") as handle:
+        for chunk in response.iter_content(chunk_size=10240):
+            if chunk:
+                handle.write(chunk)
+    return True
 
 
-def fetch_instagram_items():
-    user_id = INSTAGRAM_USER_ID or fetch_instagram_user_id()
-    if not user_id:
+def normalize_item(item, source_fallback=""):
+    if not isinstance(item, dict):
         return None
-    return fetch_instagram_items_paginated(user_id)
+    source = (item.get("source") or source_fallback or "").lower().strip()
+    url = (item.get("url") or item.get("link") or "").strip()
+    thumbnail = (item.get("thumbnail") or item.get("image") or "").strip()
+    if not url:
+        return None
+    title = normalize_whitespace(item.get("title") or item.get("caption") or "")
+    description = normalize_whitespace(item.get("description") or item.get("caption") or "")
+    published = parse_timestamp_ms(item.get("published") or item.get("timestamp"))
+    return {
+        "source": source,
+        "url": url,
+        "thumbnail": thumbnail,
+        "title": title,
+        "description": description,
+        "published": published,
+    }
+
+
+def merge_items(*groups):
+    seen = set()
+    merged = []
+    for group in groups:
+        for raw in group or []:
+            normalized = normalize_item(raw)
+            if not normalized:
+                continue
+            key = normalized["url"]
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(normalized)
+    merged.sort(key=lambda item: item.get("published") or 0, reverse=True)
+    return merged
+
+
+def load_existing_payload(path):
+    default_payload = {
+        "generated_at": "",
+        "youtube": [],
+        "tiktok": [],
+        "instagram": [],
+        "items": [],
+    }
+    if not path.exists():
+        return default_payload
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return default_payload
+    if not isinstance(data, dict):
+        return default_payload
+
+    youtube = data.get("youtube") if isinstance(data.get("youtube"), list) else []
+    tiktok = data.get("tiktok") if isinstance(data.get("tiktok"), list) else []
+    instagram = data.get("instagram") if isinstance(data.get("instagram"), list) else []
+    items = data.get("items") if isinstance(data.get("items"), list) else []
+
+    # Backward compatibility: very old payloads stored merged data only in "items".
+    if not youtube and items:
+        youtube = [entry for entry in items if isinstance(entry, dict) and (entry.get("source") or "").lower() == "youtube"]
+    if not tiktok and items:
+        tiktok = [entry for entry in items if isinstance(entry, dict) and (entry.get("source") or "").lower() == "tiktok"]
+    if not instagram and items:
+        instagram = [entry for entry in items if isinstance(entry, dict) and (entry.get("source") or "").lower() == "instagram"]
+
+    return {
+        "generated_at": data.get("generated_at") or "",
+        "youtube": youtube,
+        "tiktok": tiktok,
+        "instagram": instagram,
+        "items": items,
+    }
+
+
+def fetch_youtube_items():
+    try:
+        response = SESSION.get(YOUTUBE_RSS_URL, timeout=REQUEST_TIMEOUT)
+    except requests.RequestException:
+        return []
+
+    if response.status_code != 200:
+        return []
+
+    try:
+        root = ET.fromstring(response.text)
+    except ET.ParseError:
+        return []
+
+    items = []
+    for entry in root.findall("atom:entry", NS):
+        title = normalize_whitespace(entry.findtext("atom:title", default="", namespaces=NS))
+        video_id = entry.findtext("yt:videoId", default="", namespaces=NS).strip()
+        link_el = entry.find("atom:link[@rel='alternate']", NS)
+        url = link_el.attrib.get("href", "").strip() if link_el is not None else ""
+        if not url and video_id:
+            url = f"https://www.youtube.com/watch?v={video_id}"
+        description = normalize_whitespace(
+            entry.findtext("media:group/media:description", default="", namespaces=NS)
+        )
+        thumb_el = entry.find("media:group/media:thumbnail", NS)
+        thumbnail = thumb_el.attrib.get("url", "").strip() if thumb_el is not None else ""
+        if not thumbnail and video_id:
+            thumbnail = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+        published = parse_timestamp_ms(
+            entry.findtext("atom:published", default="", namespaces=NS)
+            or entry.findtext("atom:updated", default="", namespaces=NS)
+        )
+
+        if not url:
+            continue
+
+        items.append(
+            {
+                "source": "youtube",
+                "url": url,
+                "thumbnail": thumbnail,
+                "title": title or "YouTube Upload",
+                "description": description,
+                "published": published,
+            }
+        )
+        if is_limit_reached(items):
+            break
+
+    return items
 
 
 def fetch_instagram_user_id():
@@ -104,72 +270,29 @@ def fetch_instagram_user_id():
     return data.get("data", {}).get("user", {}).get("id")
 
 
-def fetch_instagram_items_paginated(user_id):
-    headers = {
-        "User-Agent": USER_AGENT,
-        "X-IG-App-ID": IG_APP_ID,
-        "Referer": f"https://www.instagram.com/{INSTAGRAM_USER}/",
-    }
-    IG_COVER_DIR.mkdir(parents=True, exist_ok=True)
-    items = []
-    seen = set()
-    max_id = None
-    while True:
-        url = f"https://www.instagram.com/api/v1/feed/user/{user_id}/?count=50"
-        if max_id:
-            url = f"{url}&max_id={max_id}"
-        data, error = fetch_instagram_page(url, headers)
-        if error:
-            return items if items else None
-        for entry in data.get("items", []):
-            normalized = normalize_instagram_item(entry)
-            if not normalized:
-                continue
-            if normalized["url"] in seen:
-                continue
-            seen.add(normalized["url"])
-            items.append(normalized)
-            if is_limit_reached(items):
-                break
-        if is_limit_reached(items):
-            break
-        if not data.get("more_available"):
-            break
-        next_max_id = data.get("next_max_id")
-        if not next_max_id:
-            break
-        max_id = next_max_id
-    return items
-
-
-def fetch_instagram_page(url, headers):
-    try:
-        response = SESSION.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
-    except requests.Timeout:
-        return None, "timeout"
-    except requests.RequestException:
-        return None, "error"
-    if response.status_code != 200:
-        return None, f"status_{response.status_code}"
-    try:
-        return response.json(), None
-    except ValueError:
-        return None, "json"
+def get_instagram_cover_url(entry):
+    if not isinstance(entry, dict):
+        return None
+    image_versions = entry.get("image_versions2")
+    if isinstance(image_versions, dict):
+        candidates = image_versions.get("candidates") or []
+        if candidates:
+            return candidates[0].get("url")
+    return entry.get("thumbnail_url")
 
 
 def normalize_instagram_item(entry):
     if not isinstance(entry, dict):
         return None
-    shortcode = entry.get("code") or entry.get("shortcode")
+
+    shortcode = (entry.get("code") or entry.get("shortcode") or "").strip()
     if not shortcode:
         return None
-    url = f"https://www.instagram.com/p/{shortcode}/"
+
     caption_text = ""
     if isinstance(entry.get("caption"), dict):
         caption_text = entry["caption"].get("text") or ""
-    caption_text = " ".join(caption_text.split())
-    title_text = truncate_text(caption_text, 60) if caption_text else "Instagram Post"
-    published = entry.get("taken_at") or entry.get("taken_at_timestamp") or 0
+    caption_text = normalize_whitespace(caption_text)
 
     cover_url = None
     if entry.get("media_type") == 8 and isinstance(entry.get("carousel_media"), list):
@@ -182,7 +305,6 @@ def normalize_instagram_item(entry):
 
     local_name = f"{shortcode}.jpg"
     local_path = IG_COVER_DIR / local_name
-    thumbnail = f"assets/ig-covers/{local_name}"
     if not local_path.exists():
         downloaded = download_image(
             cover_url,
@@ -194,25 +316,72 @@ def normalize_instagram_item(entry):
     if not local_path.exists():
         return None
 
+    published = parse_timestamp_ms(entry.get("taken_at") or entry.get("taken_at_timestamp"))
     return {
         "source": "instagram",
-        "url": url,
-        "thumbnail": thumbnail,
-        "title": title_text,
+        "url": f"https://www.instagram.com/p/{shortcode}/",
+        "thumbnail": f"assets/ig-covers/{local_name}",
+        "title": truncate_text(caption_text, 60) if caption_text else "Instagram Post",
         "description": caption_text,
-        "published": int(published) * 1000 if published else 0,
+        "published": published,
     }
 
 
-def get_instagram_cover_url(entry):
-    if not isinstance(entry, dict):
+def fetch_instagram_items():
+    user_id = INSTAGRAM_USER_ID or fetch_instagram_user_id()
+    if not user_id:
         return None
-    image_versions = entry.get("image_versions2")
-    if isinstance(image_versions, dict):
-        candidates = image_versions.get("candidates") or []
-        if candidates:
-            return candidates[0].get("url")
-    return entry.get("thumbnail_url")
+
+    headers = {
+        "User-Agent": USER_AGENT,
+        "X-IG-App-ID": IG_APP_ID,
+        "Referer": f"https://www.instagram.com/{INSTAGRAM_USER}/",
+    }
+
+    IG_COVER_DIR.mkdir(parents=True, exist_ok=True)
+    items = []
+    seen = set()
+    max_id = None
+
+    while True:
+        url = f"https://www.instagram.com/api/v1/feed/user/{user_id}/?count=50"
+        if max_id:
+            url = f"{url}&max_id={max_id}"
+
+        try:
+            response = SESSION.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
+        except requests.RequestException:
+            return items if items else None
+        if response.status_code != 200:
+            return items if items else None
+
+        try:
+            data = response.json()
+        except ValueError:
+            return items if items else None
+
+        for raw in data.get("items", []):
+            normalized = normalize_instagram_item(raw)
+            if not normalized:
+                continue
+            if normalized["url"] in seen:
+                continue
+            seen.add(normalized["url"])
+            items.append(normalized)
+            if is_limit_reached(items):
+                break
+
+        if is_limit_reached(items):
+            break
+        if not data.get("more_available"):
+            break
+
+        next_max_id = data.get("next_max_id")
+        if not next_max_id:
+            break
+        max_id = next_max_id
+
+    return items
 
 
 def build_instagram_items_from_covers():
@@ -220,7 +389,7 @@ def build_instagram_items_from_covers():
         return []
     items = []
     for cover in sorted(IG_COVER_DIR.glob("*.jpg")):
-        shortcode = cover.stem
+        shortcode = cover.stem.strip()
         if not shortcode:
             continue
         items.append(
@@ -231,148 +400,6 @@ def build_instagram_items_from_covers():
                 "title": "Instagram Post",
                 "description": "",
                 "published": 0,
-            }
-        )
-    return items
-
-
-def parse_tiktok_state(state):
-    modules = []
-
-    def collect_modules(node):
-        if isinstance(node, dict):
-            for key, value in node.items():
-                if key in ("ItemModule", "itemModule") and isinstance(value, dict):
-                    modules.append(value)
-                else:
-                    collect_modules(value)
-        elif isinstance(node, list):
-            for entry in node:
-                collect_modules(entry)
-
-    collect_modules(state)
-    items = []
-    for module in modules:
-        items.extend(list(module.values()))
-    return items
-
-
-def normalize_tiktok_item(item):
-    if not isinstance(item, dict):
-        return None
-    data = item.get("itemStruct") if isinstance(item.get("itemStruct"), dict) else item
-    if not isinstance(data, dict):
-        return None
-    author_unique = data.get("authorUniqueId") or data.get("authorName")
-    if not author_unique and isinstance(data.get("author"), dict):
-        author_unique = data["author"].get("uniqueId")
-    if author_unique and author_unique.lower() != TIKTOK_USER.lower():
-        return None
-    item_id = data.get("id") or data.get("itemId")
-    desc = data.get("desc") or ""
-    video = data.get("video") if isinstance(data.get("video"), dict) else {}
-    cover_url = (
-        video.get("cover")
-        or video.get("originCover")
-        or video.get("dynamicCover")
-    )
-    if cover_url and cover_url.startswith("//"):
-        cover_url = f"https:{cover_url}"
-    url = data.get("shareUrl")
-    if not url and item_id:
-        url = f"https://www.tiktok.com/@{author_unique or TIKTOK_USER}/video/{item_id}"
-    if not url or not cover_url:
-        return None
-    return {
-        "id": str(item_id) if item_id else None,
-        "desc": desc,
-        "cover_url": cover_url,
-        "url": url,
-        "published": data.get("createTime") or 0,
-    }
-
-
-def extract_tiktok_items(html):
-    if not html:
-        return []
-    patterns = [
-        r'<script[^>]+id="SIGI_STATE"[^>]*>(.*?)</script>',
-        r'<script[^>]+id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>',
-    ]
-    items = []
-    for pattern in patterns:
-        match = re.search(pattern, html, re.DOTALL)
-        if not match:
-            continue
-        payload = match.group(1).strip()
-        try:
-            data = json.loads(payload)
-        except ValueError:
-            continue
-        for entry in parse_tiktok_state(data):
-            normalized = normalize_tiktok_item(entry)
-            if normalized:
-                items.append(normalized)
-    return items
-
-
-def fetch_tiktok_items():
-    items = fetch_tiktok_items_ytdlp()
-    if items:
-        return items
-
-    profile_url = f"https://www.tiktok.com/@{TIKTOK_USER}"
-    headers = {
-        "User-Agent": USER_AGENT,
-        "Referer": "https://www.tiktok.com/",
-    }
-    try:
-        response = requests.get(profile_url, headers=headers, timeout=20)
-        if response.status_code != 200:
-            return []
-        html = response.text
-    except requests.RequestException:
-        return []
-    raw_items = extract_tiktok_items(html)
-    if not raw_items:
-        return []
-    TIKTOK_COVER_DIR.mkdir(parents=True, exist_ok=True)
-    seen = set()
-    items = []
-    for raw in limit_items(raw_items):
-        url = raw.get("url")
-        if not url or url in seen:
-            continue
-        seen.add(url)
-        cover_url = raw.get("cover_url")
-        item_id = raw.get("id") or str(len(seen))
-        local_name = f"{item_id}.jpg"
-        local_path = TIKTOK_COVER_DIR / local_name
-        thumbnail = f"assets/tiktok-covers/{local_name}"
-        if not local_path.exists():
-            downloaded = download_image(
-                cover_url,
-                local_path,
-                headers={"Referer": profile_url},
-            )
-            if not downloaded and local_path.exists():
-                local_path.unlink(missing_ok=True)
-        if not local_path.exists():
-            continue
-        desc = " ".join((raw.get("desc") or "").split())
-        title_text = truncate_text(desc, 60) if desc else "TikTok Video"
-        try:
-            published_seconds = int(raw.get("published") or 0)
-        except (TypeError, ValueError):
-            published_seconds = 0
-        items.append(
-            {
-                "source": "tiktok",
-                "url": url,
-                "thumbnail": thumbnail,
-                "title": title_text,
-                "description": desc,
-                "published": published_seconds * 1000 if published_seconds else 0,
             }
         )
     return items
@@ -395,9 +422,23 @@ def pick_tiktok_thumbnail(entry):
     return None
 
 
-def fetch_tiktok_items_ytdlp():
+def canonical_tiktok_url(raw_url):
+    if not raw_url:
+        return ""
+    clean = raw_url.split("?", 1)[0].strip()
+    match = re.search(r"/video/(\d+)", clean)
+    if not match:
+        return clean
+    video_id = match.group(1)
+    user_match = re.search(r"/@([^/]+)/video/", clean)
+    user = user_match.group(1) if user_match else TIKTOK_USER
+    return f"https://www.tiktok.com/@{user}/video/{video_id}"
+
+
+def fetch_tiktok_items():
     if yt_dlp is None:
         return []
+
     profile_url = f"https://www.tiktok.com/@{TIKTOK_USER}"
     options = {
         "quiet": True,
@@ -407,29 +448,39 @@ def fetch_tiktok_items_ytdlp():
     }
     if MAX_ITEMS > 0:
         options["playlistend"] = MAX_ITEMS
+
     try:
         with yt_dlp.YoutubeDL(options) as ydl:
             info = ydl.extract_info(profile_url, download=False)
     except Exception:
         return []
+
     entries = list(info.get("entries") or [])
     if not entries:
         return []
+
     TIKTOK_COVER_DIR.mkdir(parents=True, exist_ok=True)
     items = []
     seen = set()
+
     for entry in entries:
-        url = entry.get("url") or entry.get("webpage_url")
+        raw_url = entry.get("url") or entry.get("webpage_url")
+        url = canonical_tiktok_url(raw_url)
         if not url or url in seen:
             continue
         seen.add(url)
+
         cover_url = pick_tiktok_thumbnail(entry)
         if not cover_url:
             continue
-        item_id = entry.get("id") or str(len(seen))
+
+        item_id = str(entry.get("id") or "")
+        if not item_id:
+            match = re.search(r"/video/(\d+)", url)
+            item_id = match.group(1) if match else str(len(seen))
+
         local_name = f"{item_id}.jpg"
         local_path = TIKTOK_COVER_DIR / local_name
-        thumbnail = f"assets/tiktok-covers/{local_name}"
         if not local_path.exists():
             downloaded = download_image(
                 cover_url,
@@ -440,79 +491,93 @@ def fetch_tiktok_items_ytdlp():
                 local_path.unlink(missing_ok=True)
         if not local_path.exists():
             continue
-        desc = " ".join((entry.get("description") or "").split())
-        title_text = truncate_text(desc or entry.get("title") or "", 60) or "TikTok Video"
-        published = entry.get("timestamp") or 0
-        try:
-            published_seconds = int(published or 0)
-        except (TypeError, ValueError):
-            published_seconds = 0
+
+        description = normalize_whitespace(entry.get("description") or "")
+        title_seed = description or normalize_whitespace(entry.get("title") or "")
+        published = parse_timestamp_ms(entry.get("timestamp") or entry.get("release_timestamp"))
+
         items.append(
             {
                 "source": "tiktok",
                 "url": url,
-                "thumbnail": thumbnail,
-                "title": title_text,
-                "description": desc,
-                "published": published_seconds * 1000 if published_seconds else 0,
+                "thumbnail": f"assets/tiktok-covers/{local_name}",
+                "title": truncate_text(title_seed, 60) if title_seed else "TikTok Video",
+                "description": description,
+                "published": published,
             }
         )
+
+        if is_limit_reached(items):
+            break
+
     return items
 
 
-def load_existing_payload(path):
-    if not path.exists():
-        return {"items": [], "tiktok": [], "instagram": []}
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except ValueError:
-        return {"items": [], "tiktok": [], "instagram": []}
-    if not isinstance(data, dict):
-        return {"items": [], "tiktok": [], "instagram": []}
-    items = data.get("items") if isinstance(data.get("items"), list) else []
-    tiktok = data.get("tiktok") if isinstance(data.get("tiktok"), list) else []
-    instagram = data.get("instagram") if isinstance(data.get("instagram"), list) else []
-    return {"items": items, "tiktok": tiktok, "instagram": instagram}
-
-
-def merge_items(primary, secondary):
-    seen = set()
-    merged = []
-    for item in (primary or []) + (secondary or []):
-        if not isinstance(item, dict):
+def validate_local_thumbnails(items):
+    validated = []
+    for item in items:
+        normalized = normalize_item(item)
+        if not normalized:
             continue
-        url = item.get("url")
-        if not url or url in seen:
+        thumb = normalized.get("thumbnail") or ""
+        if thumb.startswith("assets/") and not Path(thumb).exists():
             continue
-        seen.add(url)
-        merged.append(item)
-    return merged
+        validated.append(normalized)
+    return validated
 
 
 def main():
-    existing_payload = load_existing_payload(OUTPUT_PATH)
-    manual_items = existing_payload["items"]
-    manual_tiktok = existing_payload["tiktok"]
-    manual_instagram = existing_payload["instagram"]
-    instagram_items = fetch_instagram_items()
-    if instagram_items is None:
-        instagram_items = manual_instagram or build_instagram_items_from_covers()
-        print("Instagram items: fetch failed, using cached entries.")
+    existing = load_existing_payload(OUTPUT_PATH)
+
+    manual_youtube = validate_local_thumbnails(existing.get("youtube") or [])
+    manual_tiktok = validate_local_thumbnails(existing.get("tiktok") or [])
+    manual_instagram = validate_local_thumbnails(existing.get("instagram") or [])
+
+    youtube_items = fetch_youtube_items()
+    if youtube_items:
+        log(f"YouTube items fetched: {len(youtube_items)}")
     else:
-        print(f"Instagram items: {len(instagram_items)}")
+        youtube_items = manual_youtube
+        log("YouTube fetch failed, using cached entries.")
+
     tiktok_items = fetch_tiktok_items()
-    print(f"TikTok items: {len(tiktok_items)}")
+    if tiktok_items:
+        log(f"TikTok items fetched: {len(tiktok_items)}")
+    else:
+        tiktok_items = manual_tiktok
+        log("TikTok fetch failed, using cached entries.")
+
+    instagram_items = fetch_instagram_items()
+    if instagram_items:
+        log(f"Instagram items fetched: {len(instagram_items)}")
+    else:
+        instagram_items = manual_instagram or build_instagram_items_from_covers()
+        log("Instagram fetch failed, using cached entries.")
+
+    # Keep historical cached items and prepend fresh ones.
+    youtube_items = merge_items(youtube_items, manual_youtube)
+    tiktok_items = merge_items(tiktok_items, manual_tiktok)
+    instagram_items = merge_items(instagram_items, manual_instagram)
 
     payload = {
-        "tiktok": merge_items(tiktok_items, manual_tiktok),
-        "instagram": instagram_items,
-        "items": manual_items,
+        "generated_at": now_iso(),
+        "youtube": limit_items(youtube_items),
+        "tiktok": limit_items(tiktok_items),
+        "instagram": limit_items(instagram_items),
     }
+    payload["items"] = merge_items(payload["youtube"], payload["tiktok"], payload["instagram"])
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_PATH.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=True),
+        json.dumps(payload, indent=2, ensure_ascii=False),
         encoding="utf-8",
+    )
+    log(
+        "Saved feed: "
+        f"youtube={len(payload['youtube'])}, "
+        f"tiktok={len(payload['tiktok'])}, "
+        f"instagram={len(payload['instagram'])}, "
+        f"items={len(payload['items'])}"
     )
 
 

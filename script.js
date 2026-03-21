@@ -301,6 +301,109 @@ function setupNavHighlight() {
 
 setupNavHighlight();
 
+const HEADER_AUDIO_TRACKS = [
+  {
+    label: "Track 1",
+    m4a: "assets/audio/audio-first.m4a",
+    mp3: "assets/audio/audio-first.mp3"
+  },
+  {
+    label: "Track 2",
+    m4a: "assets/audio/audio-second.m4a",
+    mp3: "assets/audio/audio-second.mp3"
+  }
+];
+const AUDIO_PLAY_ICON_PATH = "assets/icons/play.svg";
+const AUDIO_PAUSE_ICON_PATH = "assets/icons/pause.svg";
+
+function initHeaderAudioPlayer() {
+  const container = document.querySelector("[data-audio-player]");
+  if (!container) return;
+
+  const audio = container.querySelector("#site-audio");
+  const playButton = container.querySelector("[data-audio-play]");
+  const playIcon = container.querySelector("[data-audio-play-icon]");
+  const trackName = container.querySelector("[data-audio-track-name]");
+  const trackButtons = Array.from(container.querySelectorAll("[data-audio-track]"));
+
+  if (!audio || !playButton || !playIcon || !trackButtons.length) return;
+
+  const canPlayM4A = audio.canPlayType('audio/mp4; codecs="mp4a.40.2"') !== "";
+  let currentTrackIndex = 0;
+
+  const getSourceForTrack = (track) => (canPlayM4A ? track.m4a : track.mp3);
+
+  const setPlayingState = (isPlaying) => {
+    playIcon.src = isPlaying ? AUDIO_PAUSE_ICON_PATH : AUDIO_PLAY_ICON_PATH;
+    playButton.classList.toggle("is-playing", isPlaying);
+    playButton.setAttribute(
+      "aria-label",
+      isPlaying ? "Pause background music" : "Play background music"
+    );
+    playButton.setAttribute("aria-pressed", isPlaying ? "true" : "false");
+  };
+
+  const setActiveTrackButton = (activeIndex) => {
+    trackButtons.forEach((button) => {
+      const trackIndex = Number(button.dataset.audioTrack);
+      const isActive = trackIndex === activeIndex;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", isActive ? "true" : "false");
+    });
+  };
+
+  const loadTrack = async (nextTrackIndex, keepPlayback = true) => {
+    const track = HEADER_AUDIO_TRACKS[nextTrackIndex];
+    if (!track) return;
+    const shouldResume = keepPlayback && !audio.paused && !audio.ended;
+    currentTrackIndex = nextTrackIndex;
+    if (trackName) {
+      trackName.textContent = track.label;
+    }
+    audio.src = getSourceForTrack(track);
+    audio.loop = true;
+    audio.volume = 0.18;
+    audio.load();
+    setActiveTrackButton(currentTrackIndex);
+    if (shouldResume) {
+      try {
+        await audio.play();
+      } catch (error) {
+        setPlayingState(false);
+      }
+    }
+  };
+
+  playButton.addEventListener("click", async () => {
+    if (audio.paused || audio.ended) {
+      try {
+        await audio.play();
+      } catch (error) {
+        setPlayingState(false);
+      }
+      return;
+    }
+    audio.pause();
+  });
+
+  trackButtons.forEach((button) => {
+    button.addEventListener("click", async () => {
+      const trackIndex = Number(button.dataset.audioTrack);
+      if (Number.isNaN(trackIndex) || trackIndex === currentTrackIndex) return;
+      await loadTrack(trackIndex, true);
+    });
+  });
+
+  audio.addEventListener("play", () => setPlayingState(true));
+  audio.addEventListener("pause", () => setPlayingState(false));
+  audio.addEventListener("ended", () => setPlayingState(false));
+
+  loadTrack(0, false);
+  setPlayingState(false);
+}
+
+initHeaderAudioPlayer();
+
 const contactLinks = document.querySelectorAll(".contact-links a");
 if (contactLinks.length) {
   contactLinks.forEach((link) => {
@@ -646,6 +749,13 @@ function parseLocalSocialFeed(data) {
     });
   }
 
+  if (Array.isArray(data.youtube)) {
+    data.youtube.forEach((item) => {
+      const normalized = normalizeSocialItem(item, "youtube");
+      if (normalized) items.push(normalized);
+    });
+  }
+
   if (Array.isArray(data.instagram)) {
     data.instagram.forEach((item) => {
       const normalized = normalizeSocialItem(item, "instagram");
@@ -658,7 +768,9 @@ function parseLocalSocialFeed(data) {
 
 async function fetchLocalSocialFeed() {
   try {
-    const response = await fetch(SOCIAL_FEED_PATH, { cache: "no-store" });
+    const separator = SOCIAL_FEED_PATH.includes("?") ? "&" : "?";
+    const url = `${SOCIAL_FEED_PATH}${separator}t=${Date.now()}`;
+    const response = await fetch(url, { cache: "no-store" });
     if (!response.ok) return [];
     const data = await response.json();
     return parseLocalSocialFeed(data);
@@ -916,11 +1028,26 @@ function renderLatestVideo(video) {
   actions.className = "latest-video-actions";
 
   const button = document.createElement("a");
-  button.className = "btn ghost";
+  button.className = "btn ghost latest-youtube-btn";
   button.href = video.url;
   button.target = "_blank";
   button.rel = "noopener";
-  button.textContent = "Auf YouTube ansehen";
+  button.setAttribute("aria-label", "Auf YouTube ansehen");
+
+  const beforeText = document.createElement("span");
+  beforeText.textContent = "Auf";
+
+  const youtubeIcon = document.createElement("img");
+  youtubeIcon.src = SOURCE_ICON_MAP.youtube;
+  youtubeIcon.alt = "";
+  youtubeIcon.setAttribute("aria-hidden", "true");
+
+  const afterText = document.createElement("span");
+  afterText.textContent = "ansehen";
+
+  button.appendChild(beforeText);
+  button.appendChild(youtubeIcon);
+  button.appendChild(afterText);
 
   actions.appendChild(button);
   body.appendChild(heading);
@@ -1028,65 +1155,16 @@ async function loadYouTubeContent({ forceRefresh = false } = {}) {
     return;
   }
 
-  const cachedFeed = forceRefresh ? null : loadCachedFeed();
-  let cachedVideos = [];
-  if (cachedFeed) {
-    cachedVideos =
-      cachedFeed.format === "jina"
-        ? parseYouTubeFeedFromJina(cachedFeed.text)
-        : parseYouTubeFeed(cachedFeed.text);
-    if (cachedVideos.length && needsLatest) {
-      renderLatestVideo(cachedVideos[0]);
-    }
-  }
+  if (needsLatest) renderLatestSkeleton();
+  if (needsGrid) renderGridSkeleton();
 
-  const cachedInstagram = forceRefresh ? null : loadCachedInstagramFeed();
-  if (needsGrid) {
-    const cachedCombined = mergeMediaItems(cachedVideos, cachedInstagram || []);
-    if (cachedCombined.length) {
-      renderVideoGrid(cachedCombined);
-    }
-  }
-
-  if (!cachedVideos.length && (!cachedInstagram || !cachedInstagram.length)) {
-    if (needsLatest) renderLatestSkeleton();
-    if (needsGrid) renderGridSkeleton();
-  }
-
-  const fetchTasks = [
-    fetchYouTubeFeed(),
-    needsGrid ? fetchLocalSocialFeed() : Promise.resolve([]),
-    needsGrid ? fetchInstagramFeed() : Promise.resolve(null)
-  ];
-
-  const [feed, localSocialItems, instagramItems] = await Promise.all(fetchTasks);
-
-  let youtubeVideos = [];
-  if (feed) {
-    saveCachedFeed(feed);
-    youtubeVideos =
-      feed.format === "jina"
-        ? parseYouTubeFeedFromJina(feed.text)
-        : parseYouTubeFeed(feed.text);
-  }
-
-  if (!youtubeVideos.length) {
-    youtubeVideos = cachedVideos;
-  }
-
-  let finalInstagramItems =
-    instagramItems && instagramItems.length ? instagramItems : cachedInstagram || [];
-  if (needsGrid) {
-    finalInstagramItems = await hydrateInstagramItems(finalInstagramItems);
-  }
-  const combined = needsGrid
-    ? mergeMediaItems(youtubeVideos, localSocialItems, finalInstagramItems)
-    : [];
+  const combined = mergeMediaItems(await fetchLocalSocialFeed());
+  const youtubeVideos = combined.filter((item) => item.source === "youtube");
 
   if (needsLatest) {
     if (youtubeVideos.length) {
       renderLatestVideo(youtubeVideos[0]);
-    } else if (!cachedVideos.length) {
+    } else {
       renderFeedError("Videos konnten nicht geladen werden.");
     }
   }
@@ -1094,7 +1172,7 @@ async function loadYouTubeContent({ forceRefresh = false } = {}) {
   if (needsGrid) {
     if (combined.length) {
       renderVideoGrid(combined);
-    } else if (!cachedVideos.length && !cachedInstagram?.length) {
+    } else {
       renderFeedError("Videos konnten nicht geladen werden.");
     }
   }
