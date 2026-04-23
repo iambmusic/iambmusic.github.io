@@ -3,9 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IAMB Synthmusic</title>
-  <meta name="description" content="IAMB Synthmusic - cinematischer Synthwave und atmosph&auml;rische Produktionen. H&ouml;r jetzt die Releases auf deinen Lieblingsplattformen.">
-    <link rel="preload" as="image" href="assets/iamb-logo-circle.png">
+  <title></title>
+  <meta name="description" content="">
   <link rel="stylesheet" href="assets/fonts/fonts.css">
   <link rel="stylesheet" href="styles.css?v=20260321-no-source-chips">
 </head>
@@ -20,6 +19,7 @@
         <a href="musik.html">Musik</a>
         <a href="about.html">&Uuml;ber Mich</a>
       </nav>
+      <div class="creator-switch" data-creator-switch aria-label="Creator ausw&auml;hlen"></div>
       <div class="header-audio" data-audio-player>
         <audio id="site-audio" preload="metadata" loop></audio>
         <button class="audio-btn audio-play-btn" type="button" data-audio-play aria-label="Play background music" aria-pressed="false">
@@ -44,13 +44,13 @@
           <div class="logo-visualizer">
             <canvas id="audio-visualizer" aria-label="Circular Sound Visualizer" role="img"></canvas>
             <div class="logo-ring"></div>
-            <img class="logo" src="assets/iamb-logo-circle.png" alt="IAMB Synthmusic Logo">
+            <img class="logo" src="" alt="" data-creator-logo>
           </div>
         </div>
         <div class="hero-copy glow-anchor" data-animate>
-          <p class="eyebrow">Electronic Soundtracks</p>
-          <h1>Music from the Space Stage</h1>
-          <p class="lead">Enjoy the moment!</p>
+          <p class="eyebrow" data-hero-eyebrow></p>
+          <h1 data-hero-title></h1>
+          <p class="lead" data-hero-lead></p>
           <div class="cta-row">
             <a class="btn primary btn-cta-pulse cta-music-btn" href="musik.html">
               <span>Musik entdecken</span>
@@ -62,7 +62,7 @@
 
       <div class="container latest-video">
         <div class="latest-video-intro" data-animate>
-          <h2>Neueste 4 YT Uploads</h2>
+          <h2 data-latest-title></h2>
         </div>
         <div class="latest-video-card" id="latest-video-card" data-animate>
           <p class="feed-status">Neueste Uploads werden geladen.</p>
@@ -71,147 +71,24 @@
 
       <div id="plattformen" class="container section-head platforms-head full-head" data-animate>
         <h2>Plattformen</h2>
-        <p>Meine Musikvideos findest du auf den Kan&auml;len YouTube, TikTok und Instagram. Dort kannst du auch immer meine aktuellsten Musikprojekte verfolgen. Wenn du mich supporten m&ouml;chtest, dann lass auf deiner Lieblingsplattform gerne ein Abo da um zuk&uuml;nftig nichts mehr zu verpassen.</p>
+        <p data-platforms-intro></p>
       </div>
-      <div class="container platform-grid">
-        <a class="platform-card" href="https://www.youtube.com/@iamb-synthmusic7820" target="_blank" rel="noopener" data-animate>
-          <img src="assets/icons/youtube.svg" alt="YouTube">
-          <div>
-            <h3>YouTube</h3>
-            <p>Visuals &amp; Videos</p>
-          </div>
-        </a>
-        <a class="platform-card" href="https://www.tiktok.com/@iamb.synthmusic" target="_blank" rel="noopener" data-animate>
-          <img src="assets/icons/tiktok.svg" alt="TikTok">
-          <div>
-            <h3>TikTok</h3>
-            <p>Shorts &amp; Snippets</p>
-          </div>
-        </a>
-        <a class="platform-card" href="https://www.instagram.com/iamb.synthmusic/" target="_blank" rel="noopener" data-animate>
-          <img src="assets/icons/instagram.svg" alt="Instagram">
-          <div>
-            <h3>Instagram</h3>
-            <p>Stories &amp; Updates</p>
-          </div>
-        </a>
-        <a class="platform-card" href="https://open.spotify.com/artist/31f8iEkHYOs73gZurN4waJ" target="_blank" rel="noopener" data-animate>
-          <img src="assets/icons/spotify.svg" alt="Spotify">
-          <div>
-            <h3>Spotify</h3>
-            <p>Artist Page &amp; Releases</p>
-          </div>
-        </a>
-        <a class="platform-card" href="https://music.apple.com/us/artist/iamb-synthmusic/1632680655" target="_blank" rel="noopener" data-animate>
-          <img src="assets/icons/applemusic.svg" alt="Apple Music">
-          <div>
-            <h3>Apple Music</h3>
-            <p>High-Fidelity Stream</p>
-          </div>
-        </a>
-        <a class="platform-card" href="https://www.amazon.com/music/player/artists/B0B5PN5NCJ/iamb-synthmusic" target="_blank" rel="noopener" data-animate>
-          <img src="assets/icons/amazonmusic.svg" alt="Amazon Music">
-          <div>
-            <h3>Amazon Music</h3>
-            <p>Artist Page &amp; Releases</p>
-          </div>
-        </a>
-        <a class="platform-card" href="https://soundcloud.com/iamb-synthmusic" target="_blank" rel="noopener" data-animate>
-          <img src="assets/icons/soundcloud.svg" alt="SoundCloud">
-          <div>
-            <h3>SoundCloud</h3>
-            <p>Skizzen &amp; Sessions</p>
-          </div>
-        </a>
-        <a class="platform-card" href="https://www.beatport.com/release/memories-its-your-life/5069423" target="_blank" rel="noopener" data-animate>
-          <img src="assets/icons/beatport.svg" alt="Beatport">
-          <div>
-            <h3>Beatport</h3>
-            <p>Download &amp; DJ Packs</p>
-          </div>
-        </a>
-        <a class="platform-card" href="https://www.traxsource.com/artist/675015/" target="_blank" rel="noopener" data-animate>
-          <img src="assets/icons/traxsource.svg" alt="Traxsource">
-          <div>
-            <h3>Traxsource</h3>
-            <p>DJ Store &amp; Releases</p>
-          </div>
-        </a>
-        <a class="platform-card" href="https://www.qobuz.com/us-en/interpreter/iamb-synthmusic/14736427" target="_blank" rel="noopener" data-animate>
-          <img src="assets/icons/qobuz.svg" alt="Qobuz">
-          <div>
-            <h3>Qobuz</h3>
-            <p>Lossless Audio</p>
-          </div>
-        </a>
-        <a class="platform-card" href="https://www.bandlab.com/iamb_synthmusic" target="_blank" rel="noopener" data-animate>
-          <img src="assets/icons/bandlab.svg" alt="BandLab">
-          <div>
-            <h3>BandLab</h3>
-            <p>Community &amp; Updates</p>
-          </div>
-        </a>
-        <a class="platform-card" href="https://iamb-synthmusic.bandcamp.com/" target="_blank" rel="noopener" data-animate>
-          <img src="assets/icons/bandcamp.svg" alt="Bandcamp">
-          <div>
-            <h3>Bandcamp</h3>
-            <p>Releases &amp; Downloads</p>
-          </div>
-        </a>
-      </div>
+      <div class="container platform-grid" data-platform-grid></div>
     </section>
-
   </main>
 
   <footer class="site-footer">
     <div class="container footer-grid">
       <div>
-        <p class="footer-legal">&copy; 2026 IAMB Synthmusic. Alle Rechte vorbehalten.</p>
+        <p class="footer-legal" data-footer-legal></p>
         <div class="footer-contact">
-          <h3>Kontaktiere mich</h3>
-          <a class="footer-email" href="mailto:iamb.synthmusic@gmail.com">iamb.synthmusic@gmail.com</a>
+          <h3 data-footer-contact-title></h3>
+          <a class="footer-email" href="" data-footer-email></a>
         </div>
       </div>
       <div class="footer-platforms">
-        <h3>Alle Plattformen</h3>
-        <div class="contact-links">
-          <a href="https://www.youtube.com/@iamb-synthmusic7820" target="_blank" rel="noopener">
-            <img src="assets/icons/youtube.svg" alt="YouTube">YouTube
-          </a>
-          <a href="https://www.tiktok.com/@iamb.synthmusic" target="_blank" rel="noopener">
-            <img src="assets/icons/tiktok.svg" alt="TikTok">TikTok
-          </a>
-          <a href="https://www.instagram.com/iamb.synthmusic/" target="_blank" rel="noopener">
-            <img src="assets/icons/instagram.svg" alt="Instagram">Instagram
-          </a>
-          <a href="https://soundcloud.com/iamb-synthmusic" target="_blank" rel="noopener">
-            <img src="assets/icons/soundcloud.svg" alt="SoundCloud">SoundCloud
-          </a>
-          <a href="https://open.spotify.com/artist/31f8iEkHYOs73gZurN4waJ" target="_blank" rel="noopener">
-            <img src="assets/icons/spotify.svg" alt="Spotify">Spotify
-          </a>
-          <a href="https://music.apple.com/us/artist/iamb-synthmusic/1632680655" target="_blank" rel="noopener">
-            <img src="assets/icons/applemusic.svg" alt="Apple Music">Apple Music
-          </a>
-          <a href="https://www.amazon.com/music/player/artists/B0B5PN5NCJ/iamb-synthmusic" target="_blank" rel="noopener">
-            <img src="assets/icons/amazonmusic.svg" alt="Amazon Music">Amazon Music
-          </a>
-          <a href="https://www.traxsource.com/artist/675015/" target="_blank" rel="noopener">
-            <img src="assets/icons/traxsource.svg" alt="Traxsource">Traxsource
-          </a>
-          <a href="https://www.beatport.com/release/memories-its-your-life/5069423" target="_blank" rel="noopener">
-            <img src="assets/icons/beatport.svg" alt="Beatport">Beatport
-          </a>
-          <a href="https://www.qobuz.com/us-en/interpreter/iamb-synthmusic/14736427" target="_blank" rel="noopener">
-            <img src="assets/icons/qobuz.svg" alt="Qobuz">Qobuz
-          </a>
-          <a href="https://www.bandlab.com/iamb_synthmusic" target="_blank" rel="noopener">
-            <img src="assets/icons/bandlab.svg" alt="BandLab">BandLab
-          </a>
-          <a href="https://iamb-synthmusic.bandcamp.com/" target="_blank" rel="noopener">
-            <img src="assets/icons/bandcamp.svg" alt="Bandcamp">Bandcamp
-          </a>
-        </div>
+        <h3 data-footer-platforms-title></h3>
+        <div class="contact-links" data-footer-platforms></div>
       </div>
     </div>
   </footer>

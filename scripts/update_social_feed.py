@@ -16,9 +16,11 @@ INSTAGRAM_USER = os.environ.get("INSTAGRAM_USERNAME", "iamb.synthmusic")
 INSTAGRAM_USER_ID = os.environ.get("INSTAGRAM_USER_ID")
 TIKTOK_USER = os.environ.get("TIKTOK_USERNAME", "iamb.synthmusic")
 YOUTUBE_CHANNEL_ID = os.environ.get("YOUTUBE_CHANNEL_ID", "UCVV-a7quRaRVbh6bfrUVx4A")
+SELECTED_CREATOR_ID = os.environ.get("CREATOR_ID", "").strip().lower()
 MAX_ITEMS = int(os.environ.get("SOCIAL_FEED_LIMIT", "0"))
 REQUEST_TIMEOUT = int(os.environ.get("SOCIAL_FEED_TIMEOUT", "20"))
 
+CREATOR_CONFIG_PATH = Path(os.environ.get("CREATOR_CONFIG_PATH", "assets/creators.json"))
 OUTPUT_PATH = Path("assets/social-feed.json")
 IG_COVER_DIR = Path("assets/ig-covers")
 TIKTOK_COVER_DIR = Path("assets/tiktok-covers")
@@ -29,7 +31,7 @@ USER_AGENT = (
     "Chrome/123.0.0.0 Safari/537.36"
 )
 IG_APP_ID = "936619743392459"
-YOUTUBE_RSS_URL = f"https://www.youtube.com/feeds/videos.xml?channel_id={YOUTUBE_CHANNEL_ID}"
+YOUTUBE_RSS_URL = f"https://www.youtube.com/feeds/videos.xml?channel_id={YOUTUBE_CHANNEL_ID}" if YOUTUBE_CHANNEL_ID else ""
 
 SESSION = requests.Session()
 SESSION.headers.update({"User-Agent": USER_AGENT})
@@ -42,6 +44,75 @@ NS = {"atom": ATOM_NS, "yt": YT_NS, "media": MEDIA_NS}
 
 def log(message):
     print(message, flush=True)
+
+
+def load_creator_jobs():
+    if not CREATOR_CONFIG_PATH.exists():
+        return [
+            {
+                "id": "default",
+                "output_path": OUTPUT_PATH,
+                "ig_cover_dir": IG_COVER_DIR,
+                "tiktok_cover_dir": TIKTOK_COVER_DIR,
+                "instagram_user": INSTAGRAM_USER,
+                "instagram_user_id": INSTAGRAM_USER_ID,
+                "tiktok_user": TIKTOK_USER,
+                "youtube_channel_id": YOUTUBE_CHANNEL_ID,
+            }
+        ]
+
+    try:
+        data = json.loads(CREATOR_CONFIG_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+
+    creators = data.get("creators") if isinstance(data, dict) else None
+    if not isinstance(creators, dict):
+        return []
+
+    jobs = []
+    for creator_id, profile in creators.items():
+        normalized_id = str(creator_id).strip().lower()
+        if SELECTED_CREATOR_ID and normalized_id != SELECTED_CREATOR_ID:
+            continue
+        if not isinstance(profile, dict):
+            continue
+
+        feed = profile.get("feed") if isinstance(profile.get("feed"), dict) else {}
+        output_path = Path(profile.get("socialFeedPath") or f"assets/social-feed-{normalized_id}.json")
+        jobs.append(
+            {
+                "id": normalized_id,
+                "output_path": output_path,
+                "ig_cover_dir": Path(feed.get("instagramCoverDir") or ("assets/ig-covers" if normalized_id == "iamb" else f"assets/{normalized_id}-ig-covers")),
+                "tiktok_cover_dir": Path(feed.get("tiktokCoverDir") or ("assets/tiktok-covers" if normalized_id == "iamb" else f"assets/{normalized_id}-tiktok-covers")),
+                "instagram_user": feed.get("instagramUsername") or "",
+                "instagram_user_id": feed.get("instagramUserId") or "",
+                "tiktok_user": feed.get("tiktokUsername") or "",
+                "youtube_channel_id": feed.get("youtubeChannelId") or "",
+            }
+        )
+
+    return jobs
+
+
+def configure_job(job):
+    global OUTPUT_PATH, IG_COVER_DIR, TIKTOK_COVER_DIR
+    global INSTAGRAM_USER, INSTAGRAM_USER_ID, TIKTOK_USER
+    global YOUTUBE_CHANNEL_ID, YOUTUBE_RSS_URL
+
+    OUTPUT_PATH = job["output_path"]
+    IG_COVER_DIR = job["ig_cover_dir"]
+    TIKTOK_COVER_DIR = job["tiktok_cover_dir"]
+    INSTAGRAM_USER = job["instagram_user"]
+    INSTAGRAM_USER_ID = job["instagram_user_id"]
+    TIKTOK_USER = job["tiktok_user"]
+    YOUTUBE_CHANNEL_ID = job["youtube_channel_id"]
+    YOUTUBE_RSS_URL = (
+        f"https://www.youtube.com/feeds/videos.xml?channel_id={YOUTUBE_CHANNEL_ID}"
+        if YOUTUBE_CHANNEL_ID
+        else ""
+    )
 
 
 def now_iso():
@@ -202,6 +273,9 @@ def load_existing_payload(path):
 
 
 def fetch_youtube_items():
+    if not YOUTUBE_RSS_URL:
+        return []
+
     try:
         response = SESSION.get(YOUTUBE_RSS_URL, timeout=REQUEST_TIMEOUT)
     except requests.RequestException:
@@ -255,6 +329,9 @@ def fetch_youtube_items():
 
 
 def fetch_instagram_user_id():
+    if not INSTAGRAM_USER:
+        return None
+
     api_url = (
         "https://www.instagram.com/api/v1/users/web_profile_info/"
         f"?username={INSTAGRAM_USER}"
@@ -436,7 +513,7 @@ def canonical_tiktok_url(raw_url):
 
 
 def fetch_tiktok_items():
-    if yt_dlp is None:
+    if yt_dlp is None or not TIKTOK_USER:
         return []
 
     profile_url = f"https://www.tiktok.com/@{TIKTOK_USER}"
@@ -526,7 +603,7 @@ def validate_local_thumbnails(items):
     return validated
 
 
-def main():
+def update_current_feed(creator_id):
     existing = load_existing_payload(OUTPUT_PATH)
 
     manual_youtube = validate_local_thumbnails(existing.get("youtube") or [])
@@ -535,24 +612,24 @@ def main():
 
     youtube_items = fetch_youtube_items()
     if youtube_items:
-        log(f"YouTube items fetched: {len(youtube_items)}")
+        log(f"{creator_id}: YouTube items fetched: {len(youtube_items)}")
     else:
         youtube_items = manual_youtube
-        log("YouTube fetch failed, using cached entries.")
+        log(f"{creator_id}: YouTube fetch unavailable, using cached entries.")
 
     tiktok_items = fetch_tiktok_items()
     if tiktok_items:
-        log(f"TikTok items fetched: {len(tiktok_items)}")
+        log(f"{creator_id}: TikTok items fetched: {len(tiktok_items)}")
     else:
         tiktok_items = manual_tiktok
-        log("TikTok fetch failed, using cached entries.")
+        log(f"{creator_id}: TikTok fetch unavailable, using cached entries.")
 
     instagram_items = fetch_instagram_items()
     if instagram_items:
-        log(f"Instagram items fetched: {len(instagram_items)}")
+        log(f"{creator_id}: Instagram items fetched: {len(instagram_items)}")
     else:
         instagram_items = manual_instagram or build_instagram_items_from_covers()
-        log("Instagram fetch failed, using cached entries.")
+        log(f"{creator_id}: Instagram fetch unavailable, using cached entries.")
 
     # Keep historical cached items and prepend fresh ones.
     youtube_items = merge_items(youtube_items, manual_youtube)
@@ -573,12 +650,23 @@ def main():
         encoding="utf-8",
     )
     log(
-        "Saved feed: "
+        f"{creator_id}: Saved feed {OUTPUT_PATH}: "
         f"youtube={len(payload['youtube'])}, "
         f"tiktok={len(payload['tiktok'])}, "
         f"instagram={len(payload['instagram'])}, "
         f"items={len(payload['items'])}"
     )
+
+
+def main():
+    jobs = load_creator_jobs()
+    if not jobs:
+        log("No creator feed jobs configured.")
+        return
+
+    for job in jobs:
+        configure_job(job)
+        update_current_feed(job["id"])
 
 
 if __name__ == "__main__":

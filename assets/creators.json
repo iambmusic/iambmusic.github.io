@@ -1,0 +1,210 @@
+{
+  "defaultCreator": "iamb",
+  "creators": {
+    "iamb": {
+      "id": "iamb",
+      "label": "IAMB",
+      "siteTitle": "IAMB Synthmusic",
+      "socialFeedPath": "assets/social-feed-iamb.json",
+      "meta": {
+        "home": "IAMB Synthmusic - cinematischer Synthwave und atmosphärische Produktionen. Hör jetzt die Releases auf deinen Lieblingsplattformen.",
+        "music": "Alle YouTube-Uploads von IAMB Synthmusic, automatisch aktualisiert mit Cover und Beschreibung.",
+        "about": "Über Mich: Markus Ballier aus Bietigheim-Bissingen und seine Inspirationen."
+      },
+      "hero": {
+        "logo": "assets/iamb-logo-circle.png",
+        "logoAlt": "IAMB Synthmusic Logo",
+        "eyebrow": "Electronic Soundtracks",
+        "title": "Music from the Space Stage",
+        "lead": "Enjoy the moment!",
+        "latestTitle": "Neueste 4 YT Uploads"
+      },
+      "platformsIntro": "Meine Musikvideos findest du auf den Kanälen YouTube, TikTok und Instagram. Dort kannst du auch immer meine aktuellsten Musikprojekte verfolgen. Wenn du mich supporten möchtest, dann lass auf deiner Lieblingsplattform gerne ein Abo da um zukünftig nichts mehr zu verpassen.",
+      "platforms": [
+        { "id": "youtube", "label": "YouTube", "tagline": "Visuals & Videos", "url": "https://www.youtube.com/@iamb-synthmusic7820", "icon": "assets/icons/youtube.svg" },
+        { "id": "tiktok", "label": "TikTok", "tagline": "Shorts & Snippets", "url": "https://www.tiktok.com/@iamb.synthmusic", "icon": "assets/icons/tiktok.svg" },
+        { "id": "instagram", "label": "Instagram", "tagline": "Stories & Updates", "url": "https://www.instagram.com/iamb.synthmusic/", "icon": "assets/icons/instagram.svg" },
+        { "id": "spotify", "label": "Spotify", "tagline": "Artist Page & Releases", "url": "https://open.spotify.com/artist/31f8iEkHYOs73gZurN4waJ", "icon": "assets/icons/spotify.svg" },
+        { "id": "applemusic", "label": "Apple Music", "tagline": "High-Fidelity Stream", "url": "https://music.apple.com/us/artist/iamb-synthmusic/1632680655", "icon": "assets/icons/applemusic.svg" },
+        { "id": "amazonmusic", "label": "Amazon Music", "tagline": "Artist Page & Releases", "url": "https://www.amazon.com/music/player/artists/B0B5PN5NCJ/iamb-synthmusic", "icon": "assets/icons/amazonmusic.svg" },
+        { "id": "soundcloud", "label": "SoundCloud", "tagline": "Skizzen & Sessions", "url": "https://soundcloud.com/iamb-synthmusic", "icon": "assets/icons/soundcloud.svg" },
+        { "id": "beatport", "label": "Beatport", "tagline": "Download & DJ Packs", "url": "https://www.beatport.com/release/memories-its-your-life/5069423", "icon": "assets/icons/beatport.svg" },
+        { "id": "traxsource", "label": "Traxsource", "tagline": "DJ Store & Releases", "url": "https://www.traxsource.com/artist/675015/", "icon": "assets/icons/traxsource.svg" },
+        { "id": "qobuz", "label": "Qobuz", "tagline": "Lossless Audio", "url": "https://www.qobuz.com/us-en/interpreter/iamb-synthmusic/14736427", "icon": "assets/icons/qobuz.svg" },
+        { "id": "bandlab", "label": "BandLab", "tagline": "Community & Updates", "url": "https://www.bandlab.com/iamb_synthmusic", "icon": "assets/icons/bandlab.svg" },
+        { "id": "bandcamp", "label": "Bandcamp", "tagline": "Releases & Downloads", "url": "https://iamb-synthmusic.bandcamp.com/", "icon": "assets/icons/bandcamp.svg" }
+      ],
+      "music": {
+        "title": "Musik",
+        "intro": "Die neuesten Uploads von YouTube, Instagram und TikTok findest du hier. Wähle deine Lieblingsplattform (farbig hinterlegt).",
+        "filters": ["youtube", "instagram", "tiktok"]
+      },
+      "about": {
+        "image": "assets/iamb.png",
+        "imageAlt": "Markus Ballier Portrait",
+        "content": [
+          { "type": "h1", "text": "Markus B." },
+          { "type": "h3", "text": "Hallo liebe Musikinteressierte. Hier bekommst du Einblicke in meine Produktionen, rund um die elektronische Musik." },
+          { "type": "p", "text": "Name: Markus B. | iamb-synthmusic Jahrgang 1966" },
+          { "type": "p", "text": "Wohnort: Bietigheim-Bissingen (Ludwigsburg)" },
+          { "type": "p", "text": "Software: DAW Cakewalk Sonar, verschiedene VST's" },
+          { "type": "p", "text": "Hardware: Yamaha MoXF als Masterkeyboard, Motu M4, Windows-PC. Ein paar weitere Synths aus den Anfängen, z.B. den Roland Jx8P. Ich bin aus Platzgründen aber komplett auf Softsynths umgestiegen." },
+          { "type": "p", "text": "Musikgenre: Elektronische Soundtracks." },
+          { "type": "h3", "text": "Erfahrung mit elektronischer Musik:" },
+          { "type": "p", "text": "1985 - erster Synth, den Roland Jx8P und ein Fostex 4-Spur Kassettenrecorder" },
+          { "type": "p", "text": "1986 - Roland TR-505 Drumcomputer" },
+          { "type": "p", "text": "1987 - erster Sequencer C-LAB für C64" },
+          { "type": "p", "text": "1990 - erster PC fürs Studium. Einstieg in die DAW Cakewalk für DOS, später bis heute Windows-Versionen von Cakewalk Sonar" },
+          { "type": "p", "text": "1998 - Nutzung von Soundfonts für meine PC-Soundblaster-Karte" },
+          { "type": "p", "text": "2002/05 bin ich Vater geworden und habe eine längere Pause eingelegt." },
+          { "type": "p", "text": "2014 - Yamaha MoXF6. Erstmals Keyboard Unterricht bis 2015" },
+          { "type": "p", "text": "2019 - Umstieg auf VST-Instrumente." },
+          { "type": "p", "text": "2021 - Habe ich mich mit YouTube-Studio beschäftigt und meinen ersten vollständigen Track veröffentlicht." },
+          { "type": "p", "text": "2022 - Beitritt Musikvertrieb Artistfy. Erster Track auf Spotify und Co. veröffentlicht. Instagram-Profil erstellt." },
+          { "type": "p", "text": "2023 - TikTok Profil erstellt." },
+          { "type": "p", "text": "bis 2024 - verschiedene Produktionen. Insgesamt 4 Titel auf Spotify und Co. Anschaffung einer Videosoftware." },
+          { "type": "p", "text": "18.02.25 - Bin ich dem KlangKunst TechnoCollective beigetreten. (www.technocollective.de)" },
+          { "type": "p", "text": "2025 - War ein sehr musikalisch kreatives Jahr für mich." },
+          { "type": "p", "text": "2026 - Website www.iambmusic.me mit allen Links zu meiner Musik und Musikvideos. An dieser Stelle, vielen Dank an meinen Sohn der das hier ermöglicht hat!" },
+          { "type": "p", "text": "noch in 2026 - Ich beschäftige mich mit dem Thema Mastering, um die Qualität meiner Songs zu verbessern. Habe mir dazu von Izotope - Ozone 12 angeschafft." },
+          { "type": "h4", "text": "Aber jetzt lehn dich zurück, setz deine Kopfhörer auf und tauche ein in meine Welt der elektronischen Musik. Viel Spaß dabei." }
+        ],
+        "metaGroups": [
+          {
+            "title": "Leidenschaft",
+            "items": [
+              { "label": "Music Artist", "icon": "assets/icons/keyboard.svg", "alt": "Keyboard" },
+              { "label": "Producer", "icon": "assets/icons/pen.svg", "alt": "Songwriter" }
+            ]
+          },
+          {
+            "title": "Lieblingsgenres",
+            "items": [
+              { "label": "Electronic Music", "icon": "assets/icons/wave.svg", "alt": "Electronic" }
+            ]
+          }
+        ],
+        "inspirationTitle": "Inspiriert von",
+        "inspiration": [
+          { "label": "Yello", "url": "https://www.yello.com", "image": "assets/artists/yello.jpg" },
+          { "label": "Robert Miles", "url": "http://www.robertmiles.net", "image": "assets/artists/robert_miles.jpg" },
+          { "label": "Boytronic", "url": "http://www.boytronic.de", "image": "assets/artists/boytronic.jpg" },
+          { "label": "The Art Of Noise", "url": "https://www.theartofnoiseonline.com", "image": "assets/artists/the_art_of_noise.jpg" },
+          { "label": "Eloy", "url": "https://www.eloy-legacy.com", "image": "assets/artists/eloy.jpg" },
+          { "label": "Tangerine Dream", "url": "https://www.tangerinedreammusic.com", "image": "assets/artists/tangerine_dream.jpg" }
+        ]
+      },
+      "footer": {
+        "email": "iamb.synthmusic@gmail.com",
+        "contactTitle": "Kontaktiere mich",
+        "platformsTitle": "Alle Plattformen",
+        "legal": {
+          "index": "© 2026 IAMB Synthmusic. Alle Rechte vorbehalten.",
+          "musik": "© 2026 IAMB Synthmusic. Alle Rechte vorbehalten.",
+          "about": "© 2026 IAMB Synthmusic. Alle Rechte vorbehalten."
+        }
+      },
+      "feed": {
+        "youtubeChannelId": "UCVV-a7quRaRVbh6bfrUVx4A",
+        "instagramUsername": "iamb.synthmusic",
+        "tiktokUsername": "iamb.synthmusic"
+      }
+    },
+    "aimp": {
+      "id": "aimp",
+      "label": "AiMP",
+      "siteTitle": "AiMP",
+      "socialFeedPath": "assets/social-feed-aimp.json",
+      "meta": {
+        "home": "AiMP - cinematischer Synthwave und atmosphärische Produktionen. Hör jetzt die Releases auf deinen Lieblingsplattformen.",
+        "music": "Alle YouTube-Uploads von AiMP, automatisch aktualisiert mit Cover und Beschreibung.",
+        "about": "Über Mich: Markus Ballier aus Bietigheim-Bissingen und seine Inspirationen."
+      },
+      "hero": {
+        "logo": "assets/aimp-logo.jpg",
+        "logoAlt": "AiMP Logo",
+        "eyebrow": "Electronic Soundtracks",
+        "title": "Music created in collab with AI",
+        "lead": "Enjoy the moment!",
+        "latestTitle": "Neueste 4 YT Uploads"
+      },
+      "platformsIntro": "Meine Musikvideos findest du auf den Kanälen YouTube, TikTok und Instagram. Dort kannst du auch immer meine aktuellsten Musikprojekte verfolgen. Wenn du mich supporten möchtest, dann lass auf deiner Lieblingsplattform gerne ein Abo da um zukünftig nichts mehr zu verpassen.",
+      "platforms": [
+        { "id": "youtube", "label": "YouTube", "tagline": "Visuals & Videos", "url": "https://www.youtube.com/@AiMP-Musicproject", "icon": "assets/icons/youtube.svg" }
+      ],
+      "music": {
+        "title": "Musik",
+        "intro": "Die neuesten Uploads von YouTube, Instagram und TikTok findest du hier. Wähle deine Lieblingsplattform (farbig hinterlegt).",
+        "filters": ["youtube"]
+      },
+      "about": {
+        "image": "assets/iamb.png",
+        "imageAlt": "AiMP Logo",
+        "content": [
+          { "type": "h1", "text": "Markus B." },
+          { "type": "h3", "text": "Hallo liebe Musikinteressierte. Hier bekommst du Einblicke in meine Produktionen, rund um die elektronische Musik." },
+          { "type": "p", "text": "Name: Markus B. | AiMP Jahrgang 1966" },
+          { "type": "p", "text": "Wohnort: Bietigheim-Bissingen (Ludwigsburg)" },
+          { "type": "p", "text": "Software: DAW Cakewalk Sonar, verschiedene VST's" },
+          { "type": "p", "text": "Hardware: Yamaha MoXF als Masterkeyboard, Motu M4, Windows-PC. Ein paar weitere Synths aus den Anfängen, z.B. den Roland Jx8P. Ich bin aus Platzgründen aber komplett auf Softsynths umgestiegen." },
+          { "type": "p", "text": "Musikgenre: Elektronische Soundtracks." },
+          { "type": "h3", "text": "Erfahrung mit elektronischer Musik:" },
+          { "type": "p", "text": "1985 - erster Synth, den Roland Jx8P und ein Fostex 4-Spur Kassettenrecorder" },
+          { "type": "p", "text": "1986 - Roland TR-505 Drumcomputer" },
+          { "type": "p", "text": "1987 - erster Sequencer C-LAB für C64" },
+          { "type": "p", "text": "1990 - erster PC fürs Studium. Einstieg in die DAW Cakewalk für DOS, später bis heute Windows-Versionen von Cakewalk Sonar" },
+          { "type": "p", "text": "1998 - Nutzung von Soundfonts für meine PC-Soundblaster-Karte" },
+          { "type": "p", "text": "2002/05 bin ich Vater geworden und habe eine längere Pause eingelegt." },
+          { "type": "p", "text": "2014 - Yamaha MoXF6. Erstmals Keyboard Unterricht bis 2015" },
+          { "type": "p", "text": "2019 - Umstieg auf VST-Instrumente." },
+          { "type": "p", "text": "2021 - Habe ich mich mit YouTube-Studio beschäftigt und meinen ersten vollständigen Track veröffentlicht." },
+          { "type": "p", "text": "2022 - Beitritt Musikvertrieb Artistfy. Erster Track auf Spotify und Co. veröffentlicht. Instagram-Profil erstellt." },
+          { "type": "p", "text": "2023 - TikTok Profil erstellt." },
+          { "type": "p", "text": "bis 2024 - verschiedene Produktionen. Insgesamt 4 Titel auf Spotify und Co. Anschaffung einer Videosoftware." },
+          { "type": "p", "text": "18.02.25 - Bin ich dem KlangKunst TechnoCollective beigetreten. (www.technocollective.de)" },
+          { "type": "p", "text": "2025 - War ein sehr musikalisch kreatives Jahr für mich." },
+          { "type": "p", "text": "2026 - Website www.iambmusic.me mit allen Links zu meiner Musik und Musikvideos. An dieser Stelle, vielen Dank an meinen Sohn der das hier ermöglicht hat!" },
+          { "type": "p", "text": "noch in 2026 - Ich beschäftige mich mit dem Thema Mastering, um die Qualität meiner Songs zu verbessern. Habe mir dazu von Izotope - Ozone 12 angeschafft." },
+          { "type": "h4", "text": "Aber jetzt lehn dich zurück, setz deine Kopfhörer auf und tauche ein in meine Welt der elektronischen Musik. Viel Spaß dabei." }
+        ],
+        "metaGroups": [
+          {
+            "title": "Leidenschaft",
+            "items": [
+              { "label": "Music Artist", "icon": "assets/icons/keyboard.svg", "alt": "Keyboard" },
+              { "label": "Producer", "icon": "assets/icons/pen.svg", "alt": "Songwriter" }
+            ]
+          },
+          {
+            "title": "Lieblingsgenres",
+            "items": [
+              { "label": "Electronic Music", "icon": "assets/icons/wave.svg", "alt": "Electronic" }
+            ]
+          }
+        ],
+        "inspirationTitle": "Inspiriert von",
+        "inspiration": [
+          { "label": "Yello", "url": "https://www.yello.com", "image": "assets/artists/yello.jpg" },
+          { "label": "Robert Miles", "url": "http://www.robertmiles.net", "image": "assets/artists/robert_miles.jpg" },
+          { "label": "Boytronic", "url": "http://www.boytronic.de", "image": "assets/artists/boytronic.jpg" },
+          { "label": "The Art Of Noise", "url": "https://www.theartofnoiseonline.com", "image": "assets/artists/the_art_of_noise.jpg" },
+          { "label": "Eloy", "url": "https://www.eloy-legacy.com", "image": "assets/artists/eloy.jpg" },
+          { "label": "Tangerine Dream", "url": "https://www.tangerinedreammusic.com", "image": "assets/artists/tangerine_dream.jpg" }
+        ]
+      },
+      "footer": {
+        "email": "iamb.synthmusic@gmail.com",
+        "contactTitle": "Kontaktiere mich",
+        "platformsTitle": "Alle Plattformen",
+        "legal": {
+          "index": "© 2026 AiMP. Alle Rechte vorbehalten.",
+          "musik": "© 2026 AiMP. Alle Rechte vorbehalten.",
+          "about": "© 2026 AiMP. Alle Rechte vorbehalten."
+        }
+      },
+      "feed": {
+        "youtubeHandle": "AiMP-Musicproject"
+      }
+    }
+  }
+}

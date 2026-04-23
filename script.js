@@ -232,6 +232,384 @@ function observeAnimatedElements(elements) {
 
 observeAnimatedElements(document.querySelectorAll("[data-animate]"));
 
+hideEmptyProfileImages();
+
+const CREATOR_CONFIG_PATH = "assets/creators.json";
+const CREATOR_STORAGE_KEY = "selected_creator_v1";
+const CREATOR_QUERY_PARAM = "creator";
+let creatorConfig = null;
+let currentCreator = null;
+let currentCreatorId = "iamb";
+let activeSocialFeedPath = "assets/social-feed.json";
+
+function getPageKey() {
+  const fileName = window.location.pathname.split("/").pop() || "index.html";
+  if (fileName.includes("musik")) return "musik";
+  if (fileName.includes("about")) return "about";
+  return "index";
+}
+
+function getCreators() {
+  return creatorConfig?.creators || {};
+}
+
+function getDefaultCreatorId() {
+  return creatorConfig?.defaultCreator || "iamb";
+}
+
+function isKnownCreator(id) {
+  return Boolean(id && getCreators()[id]);
+}
+
+function readStoredCreatorId() {
+  try {
+    return localStorage.getItem(CREATOR_STORAGE_KEY);
+  } catch (error) {
+    return null;
+  }
+}
+
+function writeStoredCreatorId(id) {
+  try {
+    localStorage.setItem(CREATOR_STORAGE_KEY, id);
+  } catch (error) {
+    // Ignore storage errors.
+  }
+}
+
+function getRequestedCreatorId() {
+  const params = new URLSearchParams(window.location.search);
+  const fromUrl = params.get(CREATOR_QUERY_PARAM);
+  if (isKnownCreator(fromUrl)) return fromUrl;
+  if (fromUrl) return getDefaultCreatorId();
+
+  const fromStorage = readStoredCreatorId();
+  if (isKnownCreator(fromStorage)) return fromStorage;
+
+  return getDefaultCreatorId();
+}
+
+function setCreatorQueryParam(id, replace = true) {
+  const url = new URL(window.location.href);
+  url.searchParams.set(CREATOR_QUERY_PARAM, id);
+  const next = `${url.pathname}${url.search}${url.hash}`;
+  if (replace) {
+    window.history.replaceState({}, "", next);
+  } else {
+    window.history.pushState({}, "", next);
+  }
+}
+
+function getProfileUrl(href, creatorId = currentCreatorId) {
+  if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) {
+    return href;
+  }
+
+  const url = new URL(href, window.location.href);
+  if (url.origin !== window.location.origin) return href;
+
+  const fileName = url.pathname.split("/").pop() || "index.html";
+  if (!fileName.endsWith(".html")) return href;
+
+  url.searchParams.set(CREATOR_QUERY_PARAM, creatorId);
+  return `${fileName}${url.search}${url.hash}`;
+}
+
+function updateInternalProfileLinks() {
+  document.querySelectorAll("a[href]").forEach((link) => {
+    if (link.target === "_blank") return;
+    const href = link.getAttribute("href") || "";
+    const nextHref = getProfileUrl(href);
+    if (nextHref && nextHref !== href) {
+      link.setAttribute("href", nextHref);
+    }
+  });
+}
+
+function setText(selector, value) {
+  const element = document.querySelector(selector);
+  if (element && typeof value === "string") {
+    element.textContent = value;
+  }
+}
+
+function setMetaDescription(value) {
+  const meta = document.querySelector('meta[name="description"]');
+  if (meta && value) {
+    meta.setAttribute("content", value);
+  }
+}
+
+function createIconLabelLink(item, className = "") {
+  const link = document.createElement("a");
+  if (className) link.className = className;
+  link.href = item.url;
+  link.target = "_blank";
+  link.rel = "noopener";
+  link.setAttribute("aria-label", item.label);
+
+  if (item.icon) {
+    const icon = document.createElement("img");
+    icon.src = item.icon;
+    icon.alt = item.label;
+    link.appendChild(icon);
+  }
+
+  const text = document.createTextNode(item.label);
+  link.appendChild(text);
+  return link;
+}
+
+function renderCreatorSwitch() {
+  const switcher = document.querySelector("[data-creator-switch]");
+  if (!switcher || !creatorConfig) return;
+
+  switcher.innerHTML = "";
+  Object.values(getCreators()).forEach((creator) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = creator.label || creator.id;
+    button.classList.toggle("is-active", creator.id === currentCreatorId);
+    button.setAttribute("aria-pressed", creator.id === currentCreatorId ? "true" : "false");
+    button.addEventListener("click", () => {
+      if (creator.id === currentCreatorId) return;
+      applyCreatorProfile(creator.id, { pushState: true, reloadFeed: true });
+    });
+    switcher.appendChild(button);
+  });
+}
+
+function renderPlatforms(profile) {
+  const grid = document.querySelector("[data-platform-grid]");
+  if (!grid) return;
+
+  grid.innerHTML = "";
+  (profile.platforms || []).forEach((platform) => {
+    if (!platform.url) return;
+    const card = document.createElement("a");
+    card.className = "platform-card";
+    card.href = platform.url;
+    card.target = "_blank";
+    card.rel = "noopener";
+    card.setAttribute("data-animate", "");
+
+    const icon = document.createElement("img");
+    icon.src = platform.icon || "";
+    icon.alt = platform.label || "";
+    card.appendChild(icon);
+
+    const body = document.createElement("div");
+    const title = document.createElement("h3");
+    title.textContent = platform.label || "";
+    const tagline = document.createElement("p");
+    tagline.textContent = platform.tagline || "";
+    body.appendChild(title);
+    body.appendChild(tagline);
+    card.appendChild(body);
+
+    grid.appendChild(card);
+  });
+
+  observeAnimatedElements(grid.querySelectorAll("[data-animate]"));
+}
+
+function renderMediaFilters(profile) {
+  const filters = document.querySelector("[data-media-filters]");
+  if (!filters) return;
+
+  filters.innerHTML = "";
+  (profile.music?.filters || []).forEach((filter, index) => {
+    const button = document.createElement("button");
+    button.className = `btn small filter-btn${index === 0 ? " is-active" : ""}`;
+    button.type = "button";
+    button.dataset.mediaFilter = filter;
+    button.textContent = SOURCE_LABELS[filter] || filter;
+    filters.appendChild(button);
+  });
+}
+
+function renderAbout(profile) {
+  const about = profile.about || {};
+  const copy = document.querySelector("[data-about-copy]");
+  if (copy) {
+    copy.innerHTML = "";
+    (about.content || []).forEach((block) => {
+      const type = ["h1", "h2", "h3", "h4", "p"].includes(block.type) ? block.type : "p";
+      const element = document.createElement(type);
+      element.textContent = block.text || "";
+      copy.appendChild(element);
+    });
+
+    if (Array.isArray(about.metaGroups) && about.metaGroups.length) {
+      const meta = document.createElement("div");
+      meta.className = "about-meta";
+      about.metaGroups.forEach((group) => {
+        const groupElement = document.createElement("div");
+        groupElement.className = "meta-group";
+        const title = document.createElement("p");
+        title.className = "meta-title";
+        title.textContent = group.title || "";
+        const items = document.createElement("div");
+        items.className = "meta-items";
+        (group.items || []).forEach((item) => {
+          const span = document.createElement("span");
+          if (item.icon) {
+            const icon = document.createElement("img");
+            icon.loading = "lazy";
+            icon.src = item.icon;
+            icon.alt = item.alt || "";
+            span.appendChild(icon);
+          }
+          span.appendChild(document.createTextNode(item.label || ""));
+          items.appendChild(span);
+        });
+        groupElement.appendChild(title);
+        groupElement.appendChild(items);
+        meta.appendChild(groupElement);
+      });
+      copy.appendChild(meta);
+    }
+  }
+
+  const image = document.querySelector("[data-about-image]");
+  if (image && about.image) {
+    image.hidden = false;
+    image.src = about.image;
+    image.alt = about.imageAlt || "";
+  }
+
+  setText("[data-inspiration-title]", about.inspirationTitle || "");
+  const inspirationGrid = document.querySelector("[data-inspiration-grid]");
+  if (inspirationGrid) {
+    inspirationGrid.innerHTML = "";
+    (about.inspiration || []).forEach((artist) => {
+      const card = document.createElement("a");
+      card.className = "artist-card";
+      card.href = artist.url;
+      card.target = "_blank";
+      card.rel = "noopener";
+
+      const image = document.createElement("img");
+      image.loading = "lazy";
+      image.src = artist.image;
+      image.alt = artist.label || "";
+      const label = document.createElement("span");
+      label.textContent = artist.label || "";
+      card.appendChild(image);
+      card.appendChild(label);
+      inspirationGrid.appendChild(card);
+    });
+  }
+}
+
+function renderFooter(profile) {
+  const pageKey = getPageKey();
+  setText("[data-footer-legal]", profile.footer?.legal?.[pageKey] || profile.footer?.legal?.index || "");
+  setText("[data-footer-contact-title]", profile.footer?.contactTitle || "");
+  setText("[data-footer-platforms-title]", profile.footer?.platformsTitle || "");
+
+  const email = document.querySelector("[data-footer-email]");
+  if (email && profile.footer?.email) {
+    email.href = `mailto:${profile.footer.email}`;
+    email.textContent = profile.footer.email;
+  }
+
+  const links = document.querySelector("[data-footer-platforms]");
+  if (!links) return;
+  links.innerHTML = "";
+  (profile.platforms || []).forEach((platform) => {
+    if (platform.url) links.appendChild(createIconLabelLink(platform));
+  });
+}
+
+function updatePageChrome(profile) {
+  const pageKey = getPageKey();
+  if (pageKey === "musik") {
+    document.title = `Musik | ${profile.siteTitle}`;
+  } else if (pageKey === "about") {
+    document.title = `Über Mich | ${profile.siteTitle}`;
+  } else {
+    document.title = profile.siteTitle;
+  }
+  setMetaDescription(profile.meta?.[pageKey]);
+}
+
+function renderProfile(profile) {
+  activeSocialFeedPath = profile.socialFeedPath || "assets/social-feed.json";
+  document.documentElement.dataset.creator = profile.id;
+
+  updatePageChrome(profile);
+  renderCreatorSwitch();
+  updateInternalProfileLinks();
+
+  const logo = document.querySelector("[data-creator-logo]");
+  if (logo && profile.hero?.logo) {
+    logo.hidden = false;
+    logo.src = profile.hero.logo;
+    logo.alt = profile.hero.logoAlt || "";
+  }
+  setText("[data-hero-eyebrow]", profile.hero?.eyebrow);
+  setText("[data-hero-title]", profile.hero?.title);
+  setText("[data-hero-lead]", profile.hero?.lead);
+  setText("[data-latest-title]", profile.hero?.latestTitle);
+  setText("[data-platforms-intro]", profile.platformsIntro);
+  setText("[data-music-title]", profile.music?.title);
+  setText("[data-music-intro]", profile.music?.intro);
+
+  renderPlatforms(profile);
+  renderMediaFilters(profile);
+  initMediaFilters();
+  renderAbout(profile);
+  renderFooter(profile);
+}
+
+function hideEmptyProfileImages() {
+  document.querySelectorAll("[data-creator-logo], [data-about-image]").forEach((image) => {
+    if (!image.getAttribute("src")) {
+      image.hidden = true;
+    }
+  });
+}
+
+function applyCreatorProfile(id, { pushState = false, reloadFeed = false } = {}) {
+  const nextId = isKnownCreator(id) ? id : getDefaultCreatorId();
+  currentCreatorId = nextId;
+  currentCreator = getCreators()[nextId];
+  writeStoredCreatorId(nextId);
+  setCreatorQueryParam(nextId, !pushState);
+  renderProfile(currentCreator);
+  updateActiveNav();
+  if (reloadFeed) {
+    loadYouTubeContent({ forceRefresh: true });
+  }
+}
+
+async function loadCreatorConfig() {
+  try {
+    const response = await fetch(`${CREATOR_CONFIG_PATH}?t=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) throw new Error("Unable to load creator config");
+    creatorConfig = await response.json();
+  } catch (error) {
+    creatorConfig = null;
+  }
+}
+
+async function initCreatorProfiles() {
+  await loadCreatorConfig();
+  if (!creatorConfig) {
+    initMediaFilters();
+    loadYouTubeContent();
+    return;
+  }
+  applyCreatorProfile(getRequestedCreatorId(), { pushState: false, reloadFeed: false });
+  loadYouTubeContent();
+}
+
+window.addEventListener("popstate", () => {
+  if (!creatorConfig) return;
+  applyCreatorProfile(getRequestedCreatorId(), { pushState: false, reloadFeed: true });
+});
+
 const navLinks = Array.from(document.querySelectorAll(".nav a"));
 
 function setActiveNavLink(match) {
@@ -1149,8 +1527,9 @@ function parseLocalSocialFeed(data) {
 
 async function fetchLocalSocialFeed() {
   try {
-    const separator = SOCIAL_FEED_PATH.includes("?") ? "&" : "?";
-    const url = `${SOCIAL_FEED_PATH}${separator}t=${Date.now()}`;
+    const feedPath = activeSocialFeedPath || SOCIAL_FEED_PATH;
+    const separator = feedPath.includes("?") ? "&" : "?";
+    const url = `${feedPath}${separator}t=${Date.now()}`;
     const response = await fetch(url, { cache: "no-store" });
     if (!response.ok) return [];
     const data = await response.json();
@@ -1620,5 +1999,4 @@ async function loadYouTubeContent({ forceRefresh = false } = {}) {
   youtubeLoading = false;
 }
 
-initMediaFilters();
-loadYouTubeContent();
+initCreatorProfiles();
