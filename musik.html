@@ -14,12 +14,11 @@
   <header class="site-header">
     <div class="container nav-wrap">
       <nav class="nav">
-        <a href="index.html#home">Home</a>
-        <a href="index.html#plattformen">Plattformen</a>
-        <a href="musik.html">Musik</a>
-        <a href="about.html">&Uuml;ber Mich</a>
+        <a href="index.html#home" data-nav-label="home">Home</a>
+        <a href="index.html#plattformen" data-nav-label="platforms">Plattformen</a>
+        <a href="musik.html" data-nav-label="music">Musik</a>
+        <a href="about.html" data-nav-label="about">&Uuml;ber Mich</a>
       </nav>
-      <div class="creator-switch" data-creator-switch aria-label="Creator ausw&auml;hlen"></div>
       <div class="header-audio" data-audio-player>
         <audio id="site-audio" preload="metadata" loop></audio>
         <button class="audio-btn audio-play-btn" type="button" data-audio-play aria-label="Play background music" aria-pressed="false">
@@ -27,13 +26,12 @@
         </button>
         <div class="audio-meta">
           <span class="audio-now-label">Now Playing</span>
-          <span class="audio-track-name" data-audio-track-name>Track 1</span>
+          <span class="audio-track-name" data-audio-track-name>Welcome 1</span>
         </div>
-        <div class="audio-track-switch">
-          <button class="audio-btn audio-track-btn is-active" type="button" data-audio-track="0" aria-pressed="true" aria-label="Play Track 1">1</button>
-          <button class="audio-btn audio-track-btn" type="button" data-audio-track="1" aria-pressed="false" aria-label="Play Track 2">2</button>
-        </div>
+        <div class="audio-track-switch" data-audio-track-switch></div>
       </div>
+      <div class="creator-switch" data-creator-switch aria-label="Creator ausw&auml;hlen"></div>
+      <div class="language-switch" data-language-switch aria-label="Sprache ausw&auml;hlen"></div>
     </div>
   </header>
 
