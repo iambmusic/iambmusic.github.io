@@ -235,11 +235,16 @@ observeAnimatedElements(document.querySelectorAll("[data-animate]"));
 hideEmptyProfileImages();
 
 const CREATOR_CONFIG_PATH = "assets/creators.json";
+const I18N_CONFIG_PATH = "assets/i18n.json";
 const CREATOR_STORAGE_KEY = "selected_creator_v1";
+const LANGUAGE_STORAGE_KEY = "selected_language_v1";
 const CREATOR_QUERY_PARAM = "creator";
+const LANGUAGE_QUERY_PARAM = "lang";
 let creatorConfig = null;
+let i18nConfig = null;
 let currentCreator = null;
 let currentCreatorId = "iamb";
+let currentLanguage = "de";
 let activeSocialFeedPath = "assets/social-feed.json";
 
 function getPageKey() {
@@ -257,8 +262,20 @@ function getDefaultCreatorId() {
   return creatorConfig?.defaultCreator || "iamb";
 }
 
+function getLanguages() {
+  return Array.isArray(i18nConfig?.languages) ? i18nConfig.languages : [];
+}
+
+function getDefaultLanguage() {
+  return i18nConfig?.defaultLanguage || "de";
+}
+
 function isKnownCreator(id) {
   return Boolean(id && getCreators()[id]);
+}
+
+function isKnownLanguage(id) {
+  return Boolean(id && getLanguages().some((language) => language.id === id));
 }
 
 function readStoredCreatorId() {
@@ -269,9 +286,25 @@ function readStoredCreatorId() {
   }
 }
 
+function readStoredLanguage() {
+  try {
+    return localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  } catch (error) {
+    return null;
+  }
+}
+
 function writeStoredCreatorId(id) {
   try {
     localStorage.setItem(CREATOR_STORAGE_KEY, id);
+  } catch (error) {
+    // Ignore storage errors.
+  }
+}
+
+function writeStoredLanguage(id) {
+  try {
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, id);
   } catch (error) {
     // Ignore storage errors.
   }
@@ -289,9 +322,22 @@ function getRequestedCreatorId() {
   return getDefaultCreatorId();
 }
 
-function setCreatorQueryParam(id, replace = true) {
+function getRequestedLanguage() {
+  const params = new URLSearchParams(window.location.search);
+  const fromUrl = params.get(LANGUAGE_QUERY_PARAM);
+  if (isKnownLanguage(fromUrl)) return fromUrl;
+  if (fromUrl) return getDefaultLanguage();
+
+  const fromStorage = readStoredLanguage();
+  if (isKnownLanguage(fromStorage)) return fromStorage;
+
+  return getDefaultLanguage();
+}
+
+function setStateQueryParams(creatorId, languageId, replace = true) {
   const url = new URL(window.location.href);
-  url.searchParams.set(CREATOR_QUERY_PARAM, id);
+  url.searchParams.set(CREATOR_QUERY_PARAM, creatorId);
+  url.searchParams.set(LANGUAGE_QUERY_PARAM, languageId);
   const next = `${url.pathname}${url.search}${url.hash}`;
   if (replace) {
     window.history.replaceState({}, "", next);
@@ -300,7 +346,7 @@ function setCreatorQueryParam(id, replace = true) {
   }
 }
 
-function getProfileUrl(href, creatorId = currentCreatorId) {
+function getProfileUrl(href, creatorId = currentCreatorId, languageId = currentLanguage) {
   if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) {
     return href;
   }
@@ -312,6 +358,7 @@ function getProfileUrl(href, creatorId = currentCreatorId) {
   if (!fileName.endsWith(".html")) return href;
 
   url.searchParams.set(CREATOR_QUERY_PARAM, creatorId);
+  url.searchParams.set(LANGUAGE_QUERY_PARAM, languageId);
   return `${fileName}${url.search}${url.hash}`;
 }
 
@@ -338,6 +385,42 @@ function setMetaDescription(value) {
   if (meta && value) {
     meta.setAttribute("content", value);
   }
+}
+
+function localize(value, fallback = "") {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value[currentLanguage] ?? value[getDefaultLanguage()] ?? fallback;
+  }
+  return typeof value === "string" ? value : fallback;
+}
+
+function localizeList(value, fallback = []) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value[currentLanguage] || value[getDefaultLanguage()] || fallback;
+  }
+  return Array.isArray(value) ? value : fallback;
+}
+
+function getCreatorText(profile) {
+  return i18nConfig?.creators?.[profile.id] || {};
+}
+
+function getActiveCreatorText() {
+  const profile = currentCreator || getCreators()[currentCreatorId];
+  return profile ? getCreatorText(profile) : i18nConfig?.creators?.[currentCreatorId] || {};
+}
+
+function getUiText(path, fallback = "") {
+  const activeUi = getActiveCreatorText().ui || {};
+  const value = path.split(".").reduce((node, part) => node?.[part], activeUi);
+  return localize(value, fallback);
+}
+
+function applyTemplate(text, values) {
+  return Object.entries(values).reduce(
+    (result, [key, value]) => result.replaceAll(`{${key}}`, value),
+    text
+  );
 }
 
 function createIconLabelLink(item, className = "") {
@@ -379,7 +462,63 @@ function renderCreatorSwitch() {
   });
 }
 
-function renderPlatforms(profile) {
+function renderLanguageSwitch() {
+  const switcher = document.querySelector("[data-language-switch]");
+  if (!switcher || !i18nConfig) return;
+
+  switcher.innerHTML = "";
+  getLanguages().forEach((language) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = language.label || language.id.toUpperCase();
+    button.className = `language-option language-${language.id}`;
+    button.classList.toggle("is-active", language.id === currentLanguage);
+    button.setAttribute("aria-pressed", language.id === currentLanguage ? "true" : "false");
+    button.setAttribute("aria-label", language.name || language.label || language.id);
+    button.addEventListener("click", () => {
+      if (language.id === currentLanguage) return;
+      applyLanguage(language.id, { pushState: true });
+    });
+    switcher.appendChild(button);
+  });
+}
+
+function renderSharedUi() {
+  document.querySelectorAll("[data-nav-label]").forEach((link) => {
+    const key = link.dataset.navLabel;
+    link.textContent = getUiText(`nav.${key}`, link.textContent.trim());
+  });
+
+  document.querySelectorAll("[data-ui-label]").forEach((element) => {
+    element.textContent = getUiText(element.dataset.uiLabel, element.textContent.trim());
+  });
+
+  const audioNowLabel = document.querySelector(".audio-now-label");
+  if (audioNowLabel) {
+    audioNowLabel.textContent = getUiText("audio.nowPlaying", audioNowLabel.textContent.trim());
+  }
+  const audio = document.getElementById("site-audio");
+  const playButton = document.querySelector("[data-audio-play]");
+  if (playButton) {
+    const isPlaying = audio && !audio.paused && !audio.ended;
+    playButton.setAttribute(
+      "aria-label",
+      isPlaying
+        ? getUiText("audio.pause", "Pause background music")
+        : getUiText("audio.play", "Play background music")
+    );
+  }
+
+  document.querySelectorAll("#latest-video-card > .feed-status").forEach((status) => {
+    status.textContent = getUiText("feed.latestLoading", status.textContent.trim());
+  });
+
+  if (youtubeStatus && !youtubeStatus.querySelector(".js-retry")) {
+    youtubeStatus.textContent = getUiText("feed.videosLoading", youtubeStatus.textContent.trim());
+  }
+}
+
+function renderPlatforms(profile, textConfig = {}) {
   const grid = document.querySelector("[data-platform-grid]");
   if (!grid) return;
 
@@ -402,7 +541,7 @@ function renderPlatforms(profile) {
     const title = document.createElement("h3");
     title.textContent = platform.label || "";
     const tagline = document.createElement("p");
-    tagline.textContent = platform.tagline || "";
+    tagline.textContent = localize(textConfig.platformTaglines?.[platform.id]);
     body.appendChild(title);
     body.appendChild(tagline);
     card.appendChild(body);
@@ -428,22 +567,24 @@ function renderMediaFilters(profile) {
   });
 }
 
-function renderAbout(profile) {
+function renderAbout(profile, textConfig = {}) {
   const about = profile.about || {};
+  const aboutText = textConfig.about || {};
   const copy = document.querySelector("[data-about-copy]");
   if (copy) {
     copy.innerHTML = "";
-    (about.content || []).forEach((block) => {
+    localizeList(aboutText.content).forEach((block) => {
       const type = ["h1", "h2", "h3", "h4", "p"].includes(block.type) ? block.type : "p";
       const element = document.createElement(type);
       element.textContent = block.text || "";
       copy.appendChild(element);
     });
 
-    if (Array.isArray(about.metaGroups) && about.metaGroups.length) {
+    const metaGroups = localizeList(aboutText.metaGroups);
+    if (Array.isArray(metaGroups) && metaGroups.length) {
       const meta = document.createElement("div");
       meta.className = "about-meta";
-      about.metaGroups.forEach((group) => {
+      metaGroups.forEach((group) => {
         const groupElement = document.createElement("div");
         groupElement.className = "meta-group";
         const title = document.createElement("p");
@@ -478,7 +619,10 @@ function renderAbout(profile) {
     image.alt = about.imageAlt || "";
   }
 
-  setText("[data-inspiration-title]", about.inspirationTitle || "");
+  setText(
+    "[data-inspiration-title]",
+    localize(aboutText.inspirationTitle)
+  );
   const inspirationGrid = document.querySelector("[data-inspiration-grid]");
   if (inspirationGrid) {
     inspirationGrid.innerHTML = "";
@@ -502,11 +646,21 @@ function renderAbout(profile) {
   }
 }
 
-function renderFooter(profile) {
+function renderFooter(profile, textConfig = {}) {
   const pageKey = getPageKey();
-  setText("[data-footer-legal]", profile.footer?.legal?.[pageKey] || profile.footer?.legal?.index || "");
-  setText("[data-footer-contact-title]", profile.footer?.contactTitle || "");
-  setText("[data-footer-platforms-title]", profile.footer?.platformsTitle || "");
+  const footerText = textConfig.footer || {};
+  setText(
+    "[data-footer-legal]",
+    localize(footerText.legal?.[pageKey])
+  );
+  setText(
+    "[data-footer-contact-title]",
+    localize(footerText.contactTitle)
+  );
+  setText(
+    "[data-footer-platforms-title]",
+    localize(footerText.platformsTitle)
+  );
 
   const email = document.querySelector("[data-footer-email]");
   if (email && profile.footer?.email) {
@@ -522,24 +676,33 @@ function renderFooter(profile) {
   });
 }
 
-function updatePageChrome(profile) {
+function updatePageChrome(profile, textConfig = {}) {
   const pageKey = getPageKey();
+  const siteTitle = localize(textConfig.siteTitle, profile.siteTitle || profile.label || "");
   if (pageKey === "musik") {
-    document.title = `Musik | ${profile.siteTitle}`;
+    document.title = `${getUiText("nav.music", "Musik")} | ${siteTitle}`;
   } else if (pageKey === "about") {
-    document.title = `Über Mich | ${profile.siteTitle}`;
+    document.title = `${getUiText("nav.about", "Über Mich")} | ${siteTitle}`;
   } else {
-    document.title = profile.siteTitle;
+    document.title = siteTitle;
   }
-  setMetaDescription(profile.meta?.[pageKey]);
+  setMetaDescription(localize(textConfig.meta?.[pageKey]));
 }
 
 function renderProfile(profile) {
+  const textConfig = getCreatorText(profile);
   activeSocialFeedPath = profile.socialFeedPath || "assets/social-feed.json";
+  if (typeof window.setHeaderAudioTracks === "function") {
+    window.setHeaderAudioTracks(profile.audioTracks);
+  }
   document.documentElement.dataset.creator = profile.id;
+  document.documentElement.dataset.language = currentLanguage;
+  document.documentElement.lang = currentLanguage;
 
-  updatePageChrome(profile);
+  renderSharedUi();
+  updatePageChrome(profile, textConfig);
   renderCreatorSwitch();
+  renderLanguageSwitch();
   updateInternalProfileLinks();
 
   const logo = document.querySelector("[data-creator-logo]");
@@ -548,19 +711,19 @@ function renderProfile(profile) {
     logo.src = profile.hero.logo;
     logo.alt = profile.hero.logoAlt || "";
   }
-  setText("[data-hero-eyebrow]", profile.hero?.eyebrow);
-  setText("[data-hero-title]", profile.hero?.title);
-  setText("[data-hero-lead]", profile.hero?.lead);
-  setText("[data-latest-title]", profile.hero?.latestTitle);
-  setText("[data-platforms-intro]", profile.platformsIntro);
-  setText("[data-music-title]", profile.music?.title);
-  setText("[data-music-intro]", profile.music?.intro);
+  setText("[data-hero-eyebrow]", localize(textConfig.hero?.eyebrow));
+  setText("[data-hero-title]", localize(textConfig.hero?.title));
+  setText("[data-hero-lead]", localize(textConfig.hero?.lead));
+  setText("[data-latest-title]", localize(textConfig.hero?.latestTitle));
+  setText("[data-platforms-intro]", localize(textConfig.platformsIntro));
+  setText("[data-music-title]", localize(textConfig.music?.title));
+  setText("[data-music-intro]", localize(textConfig.music?.intro));
 
-  renderPlatforms(profile);
+  renderPlatforms(profile, textConfig);
   renderMediaFilters(profile);
   initMediaFilters();
-  renderAbout(profile);
-  renderFooter(profile);
+  renderAbout(profile, textConfig);
+  renderFooter(profile, textConfig);
 }
 
 function hideEmptyProfileImages() {
@@ -576,11 +739,25 @@ function applyCreatorProfile(id, { pushState = false, reloadFeed = false } = {})
   currentCreatorId = nextId;
   currentCreator = getCreators()[nextId];
   writeStoredCreatorId(nextId);
-  setCreatorQueryParam(nextId, !pushState);
+  setStateQueryParams(nextId, currentLanguage, !pushState);
   renderProfile(currentCreator);
   updateActiveNav();
   if (reloadFeed) {
     loadYouTubeContent({ forceRefresh: true });
+  }
+}
+
+function applyLanguage(id, { pushState = false } = {}) {
+  const nextId = isKnownLanguage(id) ? id : getDefaultLanguage();
+  currentLanguage = nextId;
+  writeStoredLanguage(nextId);
+  setStateQueryParams(currentCreatorId, nextId, !pushState);
+  if (currentCreator) {
+    renderProfile(currentCreator);
+    if (currentMediaItems.length) {
+      renderLatestVideos(currentMediaItems);
+      renderVideoGrid(currentMediaItems);
+    }
   }
 }
 
@@ -594,19 +771,31 @@ async function loadCreatorConfig() {
   }
 }
 
+async function loadI18nConfig() {
+  try {
+    const response = await fetch(`${I18N_CONFIG_PATH}?t=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) throw new Error("Unable to load language config");
+    i18nConfig = await response.json();
+  } catch (error) {
+    i18nConfig = null;
+  }
+}
+
 async function initCreatorProfiles() {
-  await loadCreatorConfig();
+  await Promise.all([loadCreatorConfig(), loadI18nConfig()]);
   if (!creatorConfig) {
     initMediaFilters();
     loadYouTubeContent();
     return;
   }
+  currentLanguage = getRequestedLanguage();
   applyCreatorProfile(getRequestedCreatorId(), { pushState: false, reloadFeed: false });
   loadYouTubeContent();
 }
 
 window.addEventListener("popstate", () => {
   if (!creatorConfig) return;
+  currentLanguage = getRequestedLanguage();
   applyCreatorProfile(getRequestedCreatorId(), { pushState: false, reloadFeed: true });
 });
 
@@ -679,18 +868,19 @@ function setupNavHighlight() {
 
 setupNavHighlight();
 
-const HEADER_AUDIO_TRACKS = [
+const DEFAULT_HEADER_AUDIO_TRACKS = [
   {
-    label: "Track 1",
+    label: "Welcome 1",
     m4a: "assets/audio/audio-first.m4a",
     mp3: "assets/audio/audio-first.mp3"
   },
   {
-    label: "Track 2",
+    label: "Welcome 2",
     m4a: "assets/audio/audio-second.m4a",
     mp3: "assets/audio/audio-second.mp3"
   }
 ];
+let activeHeaderAudioTracks = DEFAULT_HEADER_AUDIO_TRACKS;
 const AUDIO_PLAY_ICON_PATH = "assets/icons/play.svg";
 const AUDIO_PAUSE_ICON_PATH = "assets/icons/pause.svg";
 
@@ -702,16 +892,30 @@ function initHeaderAudioPlayer() {
   const playButton = container.querySelector("[data-audio-play]");
   const playIcon = container.querySelector("[data-audio-play-icon]");
   const trackName = container.querySelector("[data-audio-track-name]");
-  const trackButtons = Array.from(container.querySelectorAll("[data-audio-track]"));
+  const trackSwitch = container.querySelector("[data-audio-track-switch]");
 
-  if (!audio || !playButton || !playIcon || !trackButtons.length) return;
+  if (!audio || !playButton || !playIcon || !trackSwitch) return;
 
   const AUDIO_STATE_KEY = "iamb_header_audio_state_v1";
   const canPlayM4A = audio.canPlayType('audio/mp4; codecs="mp4a.40.2"') !== "";
+  const canPlayWav = audio.canPlayType("audio/wav") !== "";
   let currentTrackIndex = 0;
   let pendingResumeOnGesture = null;
+  let trackButtons = [];
 
-  const getSourceForTrack = (track) => (canPlayM4A ? track.m4a : track.mp3);
+  const normalizeTracks = (tracks) => {
+    const nextTracks = Array.isArray(tracks) ? tracks.filter(Boolean) : [];
+    return nextTracks.length ? nextTracks : DEFAULT_HEADER_AUDIO_TRACKS;
+  };
+
+  const getSourceForTrack = (track) => {
+    if (!track) return "";
+    if (canPlayM4A && track.m4a) return track.m4a;
+    if (track.mp3) return track.mp3;
+    if (track.m4a) return track.m4a;
+    if ((canPlayWav || !track.mp3) && track.wav) return track.wav;
+    return track.src || "";
+  };
 
   const readStoredState = () => {
     try {
@@ -719,6 +923,7 @@ function initHeaderAudioPlayer() {
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== "object") return null;
+      if (parsed.creatorId && parsed.creatorId !== currentCreatorId) return null;
       return {
         trackIndex: Number(parsed.trackIndex),
         currentTime: Number(parsed.currentTime),
@@ -736,7 +941,8 @@ function initHeaderAudioPlayer() {
         JSON.stringify({
           trackIndex: currentTrackIndex,
           currentTime: Number(audio.currentTime || 0),
-          isPlaying: !audio.paused && !audio.ended
+          isPlaying: !audio.paused && !audio.ended,
+          creatorId: currentCreatorId
         })
       );
     } catch (error) {
@@ -801,7 +1007,9 @@ function initHeaderAudioPlayer() {
     playButton.classList.toggle("is-playing", isPlaying);
     playButton.setAttribute(
       "aria-label",
-      isPlaying ? "Pause background music" : "Play background music"
+      isPlaying
+        ? getUiText("audio.pause", "Pause background music")
+        : getUiText("audio.play", "Play background music")
     );
     playButton.setAttribute("aria-pressed", isPlaying ? "true" : "false");
     document.body.classList.toggle("music-live", isPlaying);
@@ -822,15 +1030,40 @@ function initHeaderAudioPlayer() {
     });
   };
 
+  const renderTrackButtons = () => {
+    trackSwitch.innerHTML = "";
+    activeHeaderAudioTracks = normalizeTracks(activeHeaderAudioTracks);
+    trackButtons = activeHeaderAudioTracks.map((track, index) => {
+      const button = document.createElement("button");
+      button.className = "audio-btn audio-track-btn";
+      button.type = "button";
+      button.dataset.audioTrack = String(index);
+      button.setAttribute("aria-label", `Play ${track.label || `Track ${index + 1}`}`);
+      button.setAttribute("aria-pressed", "false");
+      button.textContent = track.shortLabel || String(index + 1);
+      button.addEventListener("click", async () => {
+        const trackIndex = Number(button.dataset.audioTrack);
+        if (Number.isNaN(trackIndex) || trackIndex === currentTrackIndex) return;
+        await loadTrack(trackIndex, true);
+        writeStoredState();
+      });
+      trackSwitch.appendChild(button);
+      return button;
+    });
+    setActiveTrackButton(currentTrackIndex);
+  };
+
   const loadTrack = async (nextTrackIndex, keepPlayback = true) => {
-    const track = HEADER_AUDIO_TRACKS[nextTrackIndex];
+    const track = activeHeaderAudioTracks[nextTrackIndex];
     if (!track) return;
+    const source = getSourceForTrack(track);
+    if (!source) return;
     const shouldResume = keepPlayback && !audio.paused && !audio.ended;
     currentTrackIndex = nextTrackIndex;
     if (trackName) {
       trackName.textContent = track.label;
     }
-    audio.src = getSourceForTrack(track);
+    audio.src = source;
     audio.loop = true;
     audio.volume = 0.18;
     audio.load();
@@ -845,6 +1078,27 @@ function initHeaderAudioPlayer() {
     writeStoredState();
   };
 
+  window.setHeaderAudioTracks = async (tracks) => {
+    const wasPlaying = !audio.paused && !audio.ended;
+    const previousSources = activeHeaderAudioTracks.map(getSourceForTrack).join("|");
+    activeHeaderAudioTracks = normalizeTracks(tracks);
+    const nextSources = activeHeaderAudioTracks.map(getSourceForTrack).join("|");
+    const sameTrackList = previousSources === nextSources;
+    currentTrackIndex = sameTrackList
+      ? Math.min(currentTrackIndex, activeHeaderAudioTracks.length - 1)
+      : 0;
+    renderTrackButtons();
+    if (sameTrackList && audio.getAttribute("src")) {
+      const track = activeHeaderAudioTracks[currentTrackIndex];
+      if (trackName && track) {
+        trackName.textContent = track.label || `Track ${currentTrackIndex + 1}`;
+      }
+      writeStoredState();
+      return;
+    }
+    await loadTrack(currentTrackIndex, wasPlaying);
+  };
+
   playButton.addEventListener("click", async () => {
     if (audio.paused || audio.ended) {
       clearPendingResumeGesture();
@@ -856,15 +1110,6 @@ function initHeaderAudioPlayer() {
       return;
     }
     audio.pause();
-  });
-
-  trackButtons.forEach((button) => {
-    button.addEventListener("click", async () => {
-      const trackIndex = Number(button.dataset.audioTrack);
-      if (Number.isNaN(trackIndex) || trackIndex === currentTrackIndex) return;
-      await loadTrack(trackIndex, true);
-      writeStoredState();
-    });
   });
 
   audio.addEventListener("play", () => {
@@ -889,10 +1134,11 @@ function initHeaderAudioPlayer() {
     savedState &&
     Number.isInteger(savedState.trackIndex) &&
     savedState.trackIndex >= 0 &&
-    savedState.trackIndex < HEADER_AUDIO_TRACKS.length
+    savedState.trackIndex < activeHeaderAudioTracks.length
       ? savedState.trackIndex
       : 0;
 
+  renderTrackButtons();
   loadTrack(startIndex, false);
   setPlayingState(Boolean(savedState?.isPlaying));
 
@@ -1058,7 +1304,7 @@ function initCircularAudioVisualizer() {
     const count = Math.min(pointsA.length, pointsB.length);
     for (let i = 0; i < count; i += 1) {
       ctx.beginPath();
-      ctx.strokeStyle = "rgba(255,255,255,0.1)";
+      ctx.strokeStyle = "rgba(255,255,255,0.3)";
       ctx.moveTo(pointsA[i].x, pointsA[i].y);
       ctx.lineTo(pointsB[i].x, pointsB[i].y);
       ctx.stroke();
@@ -1130,8 +1376,8 @@ function initCircularAudioVisualizer() {
     ctx.lineWidth = 1;
     const joinStyle = isPlaying ? "round" : "miter";
 
-    drawLine(pointsUp, "rgba(255,255,255,0.1)", joinStyle);
-    drawLine(pointsDown, "rgba(255,255,255,0.1)", joinStyle);
+    drawLine(pointsUp, "rgba(255,255,255,0.3)", joinStyle);
+    drawLine(pointsDown, "rgba(255,255,255,0.3)", joinStyle);
     connectPoints(pointsUp, pointsDown);
   }
 
@@ -1729,7 +1975,7 @@ function renderGridSkeleton(count = 6) {
   youtubeGrid.appendChild(fragment);
 
   if (youtubeStatus) {
-    youtubeStatus.textContent = "Videos werden geladen.";
+    youtubeStatus.textContent = getUiText("feed.videosLoading", "Videos werden geladen.");
   }
 }
 
@@ -1749,7 +1995,7 @@ function renderFeedError(message) {
     latestVideoCard.innerHTML = `
       <div class="feed-error">
         <p class="feed-status">${message}</p>
-        <button class="btn ghost js-retry" type="button">Erneut versuchen</button>
+        <button class="btn ghost js-retry" type="button">${getUiText("feed.retry", "Erneut versuchen")}</button>
       </div>
     `;
     attachRetry(latestVideoCard);
@@ -1758,7 +2004,7 @@ function renderFeedError(message) {
   if (status) {
     status.innerHTML = `
       <span>${message}</span>
-      <button class="btn ghost js-retry" type="button">Erneut versuchen</button>
+      <button class="btn ghost js-retry" type="button">${getUiText("feed.retry", "Erneut versuchen")}</button>
     `;
     attachRetry(status);
   }
@@ -1771,10 +2017,13 @@ function createPlatformWatchButton(video) {
   button.href = video.url;
   button.target = "_blank";
   button.rel = "noopener";
-  button.setAttribute("aria-label", `Auf ${sourceLabel} ansehen`);
+  button.setAttribute(
+    "aria-label",
+    applyTemplate(getUiText("feed.watchAria", "Auf {platform} ansehen"), { platform: sourceLabel })
+  );
 
   const beforeText = document.createElement("span");
-  beforeText.textContent = "Auf";
+  beforeText.textContent = getUiText("feed.watchBefore", "Auf");
 
   const iconPath =
     video.source === "tiktok"
@@ -1792,8 +2041,10 @@ function createPlatformWatchButton(video) {
   }
 
   const afterText = document.createElement("span");
-  afterText.textContent = "ansehen";
-  button.appendChild(afterText);
+  afterText.textContent = getUiText("feed.watchAfter", "ansehen");
+  if (afterText.textContent) {
+    button.appendChild(afterText);
+  }
 
   return button;
 }
@@ -1860,7 +2111,7 @@ function renderLatestVideos(videos) {
     .slice(0, 4);
 
   if (!latestVideos.length) {
-    renderFeedError("Videos konnten nicht geladen werden.");
+    renderFeedError(getUiText("feed.loadError", "Videos konnten nicht geladen werden."));
     return;
   }
 
@@ -1886,12 +2137,15 @@ function renderVideoGrid(videos) {
   if (!filteredVideos.length) {
     if (status) {
       if (!activeMediaFilters.size) {
-        status.textContent = "Keine Filter ausgewählt.";
+        status.textContent = getUiText("feed.noFilters", "Keine Filter ausgewählt.");
       } else if (!videos.length) {
-        status.textContent = "Keine Inhalte gefunden.";
+        status.textContent = getUiText("feed.noItems", "Keine Inhalte gefunden.");
       } else {
         const labelList = getMediaFilterLabels(activeMediaFilters).join(", ");
-        status.textContent = `Keine Inhalte für ${labelList}.`;
+        status.textContent = applyTemplate(
+          getUiText("feed.noFiltered", "Keine Inhalte für {filters}."),
+          { filters: labelList }
+        );
       }
       status.style.display = "flex";
     }
@@ -1975,12 +2229,13 @@ async function loadYouTubeContent({ forceRefresh = false } = {}) {
   if (needsGrid) renderGridSkeleton();
 
   const combined = mergeMediaItems(await fetchLocalSocialFeed());
+  currentMediaItems = combined;
 
   if (needsLatest) {
     if (combined.length) {
       renderLatestVideos(combined);
     } else {
-      renderFeedError("Videos konnten nicht geladen werden.");
+      renderFeedError(getUiText("feed.loadError", "Videos konnten nicht geladen werden."));
     }
   }
 
@@ -1988,7 +2243,7 @@ async function loadYouTubeContent({ forceRefresh = false } = {}) {
     if (combined.length) {
       renderVideoGrid(combined);
     } else {
-      renderFeedError("Videos konnten nicht geladen werden.");
+      renderFeedError(getUiText("feed.loadError", "Videos konnten nicht geladen werden."));
     }
   }
 
