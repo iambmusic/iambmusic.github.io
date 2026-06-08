@@ -161,6 +161,12 @@
           "label": "YouTube",
           "url": "https://www.youtube.com/@AiMP-Musicproject",
           "icon": "assets/icons/youtube.svg"
+        },
+        {
+          "id": "soundcloud",
+          "label": "SoundCloud",
+          "url": "https://soundcloud.com/aimp-musicproject",
+          "icon": "assets/icons/soundcloud.svg"
         }
       ],
       "music": {
